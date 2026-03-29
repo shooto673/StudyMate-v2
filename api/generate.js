@@ -20,13 +20,19 @@ export default async function handler(req, res) {
   const subjectLabel = subject === 'english' ? '英語' : '数学'
 
   const mathGraphInstruction = subject === 'math' ? `
-- グラフや図形が必要な問題には graphData フィールドを追加してください。以下の種類に対応:
-  - 座標平面: {"type":"coordinate","range":5,"lines":[{"slope":2,"intercept":0,"label":"y=2x"}],"points":[{"x":1,"y":2,"label":"A"}]}
-  - 数直線: {"type":"numberline","min":-5,"max":5,"points":[{"value":3,"label":"A"}]}
-  - 図形: {"type":"shape","shape":"triangle","labels":["A","B","C"],"sides":["5cm","3cm","4cm"]}
+- グラフや図形が必要な問題には graphData フィールドを追加してください。
+- 【重要】graphDataは問題文の内容と完全に一致する図のみ追加すること。以下のルールを厳守:
+  - 問題文にラベル（「あ」「い」「A」「B」等）が出る場合、graphDataにも必ずそのラベルを含めること
+  - 図が問題を解くのに不可欠な情報を持つこと（寸法、ラベル、座標など）
+  - 描画システムが対応していない複雑な図形（展開図、立体図、角度の図など）にはgraphDataを付けないこと（nullにする）
+  - 対応している図形タイプ: 座標平面上の一次関数グラフ、数直線、三角形（頂点ラベル・辺の長さ付き）、長方形（幅・高さ付き）、円（半径付き）
+- graphDataの例:
+  - 一次関数グラフ: {"type":"coordinate","range":5,"lines":[{"slope":2,"intercept":1,"label":"y=2x+1"}],"points":[{"x":1,"y":3,"label":"A"}]}
+  - 数直線: {"type":"numberline","min":-5,"max":5,"points":[{"value":3,"label":"P"}]}
+  - 三角形: {"type":"shape","shape":"triangle","labels":["A","B","C"],"sides":["5cm","3cm","4cm"]}
   - 長方形: {"type":"shape","shape":"rectangle","width":"6cm","height":"4cm"}
   - 円: {"type":"shape","shape":"circle","radius":"5cm"}
-- ${count}問中2問以上にgraphDataを含めてください（関数・グラフ・図形関連の単元の場合）` : ''
+- 描画できない図形が必要な問題では、graphDataをnullにし、問題文だけで解けるように問題を作ること` : ''
 
   const prompt = `あなたは${gradeLabel}の${subjectLabel}の先生です。
 以下の単元について、4択クイズを${count}問作成してください。
@@ -39,7 +45,7 @@ export default async function handler(req, res) {
 - 各問題は question（問題文）、choices（4つの選択肢配列）、correctIndex（正解のインデックス0-3）、explanation（解説）を含む
 - 問題は基本〜標準レベル
 - 問題文は簡潔に（中学生が理解できる日本語）
-- ${subject === 'english' ? '英語の問題は日本語で出題し、選択肢に英語を含める。文法や語彙を問う形式で。' : '数学の問題は計算問題や文章題を混ぜて出す。選択肢は数値や式で。'}
+- ${subject === 'english' ? '英語の問題は日本語で出題し、選択肢に英語を含める。文法や語彙を問う形式で。' : '数学の問題は計算問題や文章題を混ぜて出す。選択肢は数値や式で。図が描画できない問題は問題文だけで解ける形にすること。'}
 - 解説は1-2文で簡潔に${mathGraphInstruction}
 
 以下のJSON形式で返してください（JSON以外は一切出力しないでください）:
