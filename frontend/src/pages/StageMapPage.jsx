@@ -43,7 +43,7 @@ function PathNode({ unit, index, total, theme, status, onTap }) {
       style={{
         position: 'absolute',
         left: `${xPercent}%`,
-        top: index * 120 + 20,
+        top: index * 170 + 40,
         transform: 'translateX(-50%)',
         display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
         zIndex: isActive ? 10 : 1,
@@ -165,7 +165,7 @@ function PathNode({ unit, index, total, theme, status, onTap }) {
 function RoadPath({ units, theme }) {
   const points = units.map((_, i) => {
     const { xPercent } = getNodeLayout(i, units.length)
-    return { x: xPercent * 3.6, y: i * 120 + 50 } // scale x to SVG coords (360 wide)
+    return { x: xPercent * 3.6, y: i * 170 + 70 } // scale x to SVG coords (360 wide)
   })
 
   // Create smooth bezier curves between points
@@ -180,7 +180,7 @@ function RoadPath({ units, theme }) {
   const last = points[points.length - 1]
   d += ` L ${180} ${last.y + 140}`
 
-  const totalHeight = units.length * 120 + 180
+  const totalHeight = units.length * 170 + 240
 
   return (
     <svg
@@ -203,7 +203,7 @@ export default function StageMapPage({ grade, subject, units, mascotId, onSelect
   const theme = SUBJECT_THEME[subject]
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-cheering.png' : '/mascots/taylor/mascot-cheering.png'
   const gradeLabel = { j1: '中1', j2: '中2', j3: '中3' }[grade]
-  const totalHeight = units.length * 120 + 200
+  const totalHeight = units.length * 170 + 240
 
   const getStatus = (idx) => {
     const unit = units[idx]
@@ -304,7 +304,7 @@ export default function StageMapPage({ grade, subject, units, mascotId, onSelect
               style={{
                 position: 'absolute',
                 left: '50%', transform: 'translateX(-50%)',
-                top: units.length * 120 + 40,
+                top: units.length * 170 + 60,
                 display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8,
               }}
             >

@@ -50,7 +50,7 @@ function WeeklyChart({ data }) {
   )
 }
 
-export default function DashboardPage({ mascotId, profile, userPlan, onBack, onNavigate }) {
+export default function DashboardPage({ mascotId, profile, grade, userPlan, onBack, onNavigate, onGradeChange }) {
   const [tab, setTab] = useState('stats')
   const agg = useMemo(() => getAggregateStats(), [])
   const english = useMemo(() => getSubjectStats('english'), [])
@@ -331,17 +331,38 @@ export default function DashboardPage({ mascotId, profile, userPlan, onBack, onN
                 { label: 'ニックネーム', value: profile?.displayName || '冒険者' },
                 { label: 'メール', value: 'demo@studymate.app' },
                 { label: 'バディ', value: mascotId === 'mona' ? 'モナちゃん' : 'テイラーくん' },
-                { label: '学年', value: '中学1年' },
                 { label: '登録日', value: '2026年3月15日' },
               ].map((item, i) => (
                 <div key={i} style={{
                   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                  padding: '12px 0', borderBottom: i < 4 ? '1px solid #f3f4f6' : 'none',
+                  padding: '12px 0', borderBottom: '1px solid #f3f4f6',
                 }}>
                   <span style={{ fontSize: 14, color: '#6b7280' }}>{item.label}</span>
                   <span className="font-bold" style={{ fontSize: 14, color: '#1a1a2e' }}>{item.value}</span>
                 </div>
               ))}
+              {/* Grade selector */}
+              <div style={{ padding: '12px 0' }}>
+                <span style={{ fontSize: 14, color: '#6b7280', marginBottom: 8, display: 'block' }}>学年</span>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {[
+                    { id: 'j1', label: '中学1年' },
+                    { id: 'j2', label: '中学2年' },
+                    { id: 'j3', label: '中学3年' },
+                  ].map(g => (
+                    <button key={g.id} onClick={() => onGradeChange?.(g.id)}
+                      style={{
+                        flex: 1, padding: '10px 0', borderRadius: 12, fontSize: 13, fontWeight: 700,
+                        border: grade === g.id ? '2px solid #6C63FF' : '2px solid #e5e7eb',
+                        background: grade === g.id ? '#EDE9FF' : '#fff',
+                        color: grade === g.id ? '#6C63FF' : '#6b7280',
+                        cursor: 'pointer', transition: 'all 0.2s',
+                      }}>
+                      {g.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
 
             {/* Danger zone */}

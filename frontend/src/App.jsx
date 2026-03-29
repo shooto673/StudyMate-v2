@@ -144,9 +144,11 @@ export default function App() {
       return <DashboardPage
         mascotId={mascotId}
         profile={profile}
+        grade={grade}
         userPlan={userPlan}
         onBack={() => navigate('stageMap')}
         onNavigate={navigate}
+        onGradeChange={(g) => setGrade(g)}
       />
 
     case 'weeklyReport':
