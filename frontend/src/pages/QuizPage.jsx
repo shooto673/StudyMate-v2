@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Zap, CheckCircle2, XCircle, ChevronRight, Lightbulb, Sparkles } from 'lucide-react'
 import Confetti from '../components/Confetti'
+import MathGraph from '../components/MathGraph'
 
 const MASCOT_STATES = {
   taylor: {
@@ -275,6 +276,11 @@ export default function QuizPage({ questions, subUnit, mascotId, loading, onComp
               }}>
                 {q.question}
               </h2>
+              {q.graphData && (
+                <div style={{ marginTop: 12, borderRadius: 12, background: '#f9fafb', padding: '8px 4px', border: '1px solid #f1f1f1' }}>
+                  <MathGraph graphData={q.graphData} />
+                </div>
+              )}
             </motion.div>
 
             {/* Choices - 2x2 grid */}

@@ -1,27 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Flame, Trophy, Target, Zap, BookOpen, Calculator, Crown, ChevronRight, Settings, Star, TrendingUp, Calendar, Award, BarChart3, Users, Gem } from 'lucide-react'
-
-// Mock stats for demo
-const MOCK_STATS = {
-  level: 7,
-  xp: 1240,
-  xpToNext: 2000,
-  totalQuestions: 342,
-  accuracy: 78,
-  streak: 5,
-  bestStreak: 12,
-  plan: 'Free',
-  english: { total: 198, accuracy: 82, unitsCleared: 4, totalUnits: 18 },
-  math: { total: 144, accuracy: 73, unitsCleared: 2, totalUnits: 15 },
-  weeklyActivity: [3, 5, 8, 0, 6, 10, 4], // Mon-Sun
-  recentSessions: [
-    { date: '3/28', unit: 'be動詞', subUnit: 'am, is, are', score: 90, xp: 85 },
-    { date: '3/27', unit: 'アルファベット', subUnit: '大文字・小文字', score: 100, xp: 120 },
-    { date: '3/27', unit: '正負の数', subUnit: '加法・減法', score: 70, xp: 55 },
-    { date: '3/26', unit: 'be動詞', subUnit: '肯定文', score: 80, xp: 68 },
-  ],
-}
+import { getAggregateStats, getSubjectStats, getWeeklyActivity, getStreak, getRecentSessions } from '../lib/progressStore'
 
 function StatCard({ icon: Icon, label, value, sub, color, delay = 0 }) {
   return (
@@ -72,9 +52,33 @@ function WeeklyChart({ data }) {
 
 export default function DashboardPage({ mascotId, profile, userPlan, onBack, onNavigate }) {
   const [tab, setTab] = useState('stats')
-  const stats = MOCK_STATS
+  const agg = useMemo(() => getAggregateStats(), [])
+  const english = useMemo(() => getSubjectStats('english'), [])
+  const math = useMemo(() => getSubjectStats('math'), [])
+  const weekly = useMemo(() => getWeeklyActivity(), [])
+  const streak = useMemo(() => getStreak(), [])
+  const sessions = useMemo(() => getRecentSessions(10), [])
+  const stats = {
+    level: agg.level,
+    xp: agg.totalXp,
+    xpToNext: agg.xpToNext,
+    totalQuestions: agg.totalQuestions,
+    accuracy: agg.accuracy,
+    streak: streak.current,
+    bestStreak: streak.best,
+    plan: userPlan === 'free' ? 'Free' : userPlan === 'standard' ? 'Standard' : 'Premium',
+    english, math,
+    weeklyActivity: weekly.map(d => d.count),
+    recentSessions: sessions.map(s => ({
+      date: s.dateLabel,
+      unit: s.unitTitle,
+      subUnit: s.subUnitTitle,
+      score: s.score,
+      xp: s.xpGained,
+    })),
+  }
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-happy.png' : '/mascots/taylor/mascot-cheering.png'
-  const xpProgress = (stats.xp / stats.xpToNext) * 100
+  const xpProgress = agg.xpToNext > 0 ? ((agg.xpInLevel || 0) / agg.xpToNext) * 100 : 0
 
   return (
     <div style={{ minHeight: '100dvh', background: '#FFFDF7' }}>

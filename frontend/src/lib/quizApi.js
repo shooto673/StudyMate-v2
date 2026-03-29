@@ -22,6 +22,7 @@ export async function fetchQuizQuestions({ unitTitle, subUnitTitle, subject, gra
       choices: q.choices,
       answer: q.correctIndex,
       explanation: q.explanation,
+      graphData: q.graphData || null,
     }))
   } catch (err) {
     console.error('Failed to fetch quiz questions:', err)

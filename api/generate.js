@@ -19,6 +19,15 @@ export default async function handler(req, res) {
   const gradeLabel = { j1: '中学1年', j2: '中学2年', j3: '中学3年' }[grade] || '中学1年'
   const subjectLabel = subject === 'english' ? '英語' : '数学'
 
+  const mathGraphInstruction = subject === 'math' ? `
+- グラフや図形が必要な問題には graphData フィールドを追加してください。以下の種類に対応:
+  - 座標平面: {"type":"coordinate","range":5,"lines":[{"slope":2,"intercept":0,"label":"y=2x"}],"points":[{"x":1,"y":2,"label":"A"}]}
+  - 数直線: {"type":"numberline","min":-5,"max":5,"points":[{"value":3,"label":"A"}]}
+  - 図形: {"type":"shape","shape":"triangle","labels":["A","B","C"],"sides":["5cm","3cm","4cm"]}
+  - 長方形: {"type":"shape","shape":"rectangle","width":"6cm","height":"4cm"}
+  - 円: {"type":"shape","shape":"circle","radius":"5cm"}
+- ${count}問中2問以上にgraphDataを含めてください（関数・グラフ・図形関連の単元の場合）` : ''
+
   const prompt = `あなたは${gradeLabel}の${subjectLabel}の先生です。
 以下の単元について、4択クイズを${count}問作成してください。
 
@@ -31,7 +40,7 @@ export default async function handler(req, res) {
 - 問題は基本〜標準レベル
 - 問題文は簡潔に（中学生が理解できる日本語）
 - ${subject === 'english' ? '英語の問題は日本語で出題し、選択肢に英語を含める。文法や語彙を問う形式で。' : '数学の問題は計算問題や文章題を混ぜて出す。選択肢は数値や式で。'}
-- 解説は1-2文で簡潔に
+- 解説は1-2文で簡潔に${mathGraphInstruction}
 
 以下のJSON形式で返してください（JSON以外は一切出力しないでください）:
 [
@@ -39,7 +48,7 @@ export default async function handler(req, res) {
     "question": "問題文",
     "choices": ["選択肢A", "選択肢B", "選択肢C", "選択肢D"],
     "correctIndex": 0,
-    "explanation": "解説文"
+    "explanation": "解説文"${subject === 'math' ? ',\n    "graphData": null' : ''}
   }
 ]`
 

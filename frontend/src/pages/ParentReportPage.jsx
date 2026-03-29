@@ -1,37 +1,59 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Shield, Share2, Download, Mail, BookOpen, Calculator, TrendingUp, Clock, Target, Calendar, Check, Lock, Crown } from 'lucide-react'
-
-const MOCK_PARENT_DATA = {
-  childName: '冒険者',
-  grade: '中学1年',
-  period: '2026年3月',
-  totalStudyDays: 22,
-  totalStudyMinutes: 198,
-  avgDailyMinutes: 9,
-  totalQuestions: 342,
-  accuracy: 78,
-  monthlyProgress: [
-    { week: '第1週', questions: 72, accuracy: 71 },
-    { week: '第2週', questions: 88, accuracy: 75 },
-    { week: '第3週', questions: 95, accuracy: 80 },
-    { week: '第4週', questions: 87, accuracy: 81 },
-  ],
-  subjects: [
-    { name: '英語', icon: BookOpen, color: '#4DABF7', progress: 33, accuracy: 82, strongUnits: ['アルファベット', 'be動詞'], weakUnits: ['一般動詞'] },
-    { name: '数学', icon: Calculator, color: '#FF922B', progress: 22, accuracy: 73, strongUnits: ['正負の数'], weakUnits: ['1次方程式', '文字と式'] },
-  ],
-  behaviorNotes: [
-    '毎日コツコツ取り組めています 📚',
-    '英語の正答率が先月より6%アップしました 📈',
-    '数学の文字と式が苦手なようです。サポートをおすすめします 💡',
-  ],
-}
+import { getAggregateStats, getSubjectStats, getStreak, getAllProgress, getRecentSessions } from '../lib/progressStore'
 
 export default function ParentReportPage({ mascotId, userPlan, onBack, onNavigate }) {
   const [shared, setShared] = useState(false)
   const isPremium = userPlan === 'premium'
-  const d = MOCK_PARENT_DATA
+
+  const agg = useMemo(() => getAggregateStats(), [])
+  const engStats = useMemo(() => getSubjectStats('english'), [])
+  const mathStats = useMemo(() => getSubjectStats('math'), [])
+  const streak = useMemo(() => getStreak(), [])
+  const allProgress = useMemo(() => getAllProgress(), [])
+  const sessions = useMemo(() => getRecentSessions(50), [])
+
+  // Calculate study days
+  const studyDates = [...new Set(sessions.map(s => s.date.slice(0, 10)))]
+
+  // Find strong/weak units per subject
+  const getUnitAnalysis = (subjectKey) => {
+    const entries = Object.values(allProgress).filter(e => e.subject === subjectKey)
+    const strong = entries.filter(e => e.bestScore >= 80).map(e => e.unitTitle)
+    const weak = entries.filter(e => e.bestScore < 70 && e.attempts > 0).map(e => e.unitTitle)
+    return { strong: [...new Set(strong)].slice(0, 3), weak: [...new Set(weak)].slice(0, 3) }
+  }
+  const engAnalysis = getUnitAnalysis('english')
+  const mathAnalysis = getUnitAnalysis('math')
+
+  // Behavior notes based on real data
+  const behaviorNotes = []
+  if (streak.current >= 3) behaviorNotes.push(`${streak.current}日連続で学習に取り組んでいます`)
+  if (agg.totalQuestions > 0) behaviorNotes.push(`合計${agg.totalQuestions}問に挑戦しています`)
+  if (agg.accuracy >= 80) behaviorNotes.push('正答率が80%以上で、よく理解できています')
+  else if (agg.accuracy >= 60) behaviorNotes.push('基礎的な内容は理解できています')
+  if (engStats.accuracy > 0 && mathStats.accuracy > 0) {
+    if (engStats.accuracy > mathStats.accuracy + 10) behaviorNotes.push('英語が得意で、数学のサポートがあるとより伸びそうです')
+    else if (mathStats.accuracy > engStats.accuracy + 10) behaviorNotes.push('数学が得意で、英語のサポートがあるとより伸びそうです')
+  }
+  if (behaviorNotes.length === 0) behaviorNotes.push('まだ学習データが少ないです。クイズに挑戦してみましょう！')
+
+  const d = {
+    childName: '冒険者',
+    grade: '中学1年',
+    period: `${new Date().getFullYear()}年${new Date().getMonth() + 1}月`,
+    totalStudyDays: studyDates.length,
+    totalQuestions: agg.totalQuestions,
+    accuracy: agg.accuracy,
+    avgDailyMinutes: studyDates.length > 0 ? Math.round((agg.totalQuestions * 0.5) / studyDates.length) : 0,
+    subjects: [
+      { name: '英語', icon: BookOpen, color: '#4DABF7', progress: engStats.totalUnits > 0 ? Math.round((engStats.unitsCleared / Math.max(engStats.totalUnits, 1)) * 100) : 0, accuracy: engStats.accuracy, strongUnits: engAnalysis.strong.length > 0 ? engAnalysis.strong : ['--'], weakUnits: engAnalysis.weak.length > 0 ? engAnalysis.weak : ['--'] },
+      { name: '数学', icon: Calculator, color: '#FF922B', progress: mathStats.totalUnits > 0 ? Math.round((mathStats.unitsCleared / Math.max(mathStats.totalUnits, 1)) * 100) : 0, accuracy: mathStats.accuracy, strongUnits: mathAnalysis.strong.length > 0 ? mathAnalysis.strong : ['--'], weakUnits: mathAnalysis.weak.length > 0 ? mathAnalysis.weak : ['--'] },
+    ],
+    behaviorNotes,
+    monthlyProgress: [],
+  }
 
   if (!isPremium) {
     return (
@@ -123,22 +145,19 @@ export default function ParentReportPage({ mascotId, userPlan, onBack, onNavigat
           ))}
         </div>
 
-        {/* Monthly Trend */}
+        {/* Summary Stats */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
           style={{ background: '#fff', borderRadius: 20, padding: '20px 18px', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', border: '1px solid #f1f1f1', marginBottom: 16 }}>
-          <h3 className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 14 }}>📈 月間推移</h3>
+          <h3 className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 14 }}>📈 学習サマリー</h3>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {d.monthlyProgress.map((w, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <span style={{ fontSize: 12, color: '#6b7280', width: 48, flexShrink: 0 }}>{w.week}</span>
-                <div style={{ flex: 1, height: 10, borderRadius: 999, background: '#f3f4f6' }}>
-                  <motion.div
-                    initial={{ width: 0 }}
-                    animate={{ width: `${w.accuracy}%` }}
-                    transition={{ duration: 0.6, delay: 0.1 * i }}
-                    style={{ height: '100%', borderRadius: 999, background: 'linear-gradient(90deg, #6C63FF, #38BDF8)' }} />
-                </div>
-                <span className="font-bold" style={{ fontSize: 13, color: '#1a1a2e', width: 40, textAlign: 'right' }}>{w.accuracy}%</span>
+            {[
+              { label: '総正解数', value: `${agg.totalCorrect}問`, color: '#51CF66' },
+              { label: '総間違い数', value: `${agg.totalQuestions - agg.totalCorrect}問`, color: '#FF6B6B' },
+              { label: '現在のレベル', value: `Lv.${agg.level}`, color: '#6C63FF' },
+            ].map((item, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', borderRadius: 12, background: '#f9fafb' }}>
+                <span style={{ fontSize: 14, color: '#6b7280' }}>{item.label}</span>
+                <span className="font-bold" style={{ fontSize: 16, color: item.color }}>{item.value}</span>
               </div>
             ))}
           </div>

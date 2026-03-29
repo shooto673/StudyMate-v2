@@ -1,12 +1,16 @@
 import { motion } from 'framer-motion'
 import { ArrowLeft, ChevronRight, Lock } from 'lucide-react'
+import { getSubUnitPercent, isSubUnitMastered } from '../lib/progressStore'
 
 export default function SectionPage({ unit, onSelectSubUnit, onBack, mascotId }) {
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-thinking.png' : '/mascots/taylor/mascot-thinking.png'
   const subUnits = unit?.subUnits || []
 
-  // Mock progress: first sub-unit mastered, second in-progress
-  const getProgress = (idx) => idx === 0 ? 100 : idx === 1 ? 40 : 0
+  const getProgress = (idx) => {
+    const sub = subUnits[idx]
+    if (!sub) return 0
+    return getSubUnitPercent(sub.slug)
+  }
 
   return (
     <div style={{ minHeight: '100dvh', background: '#FFFDF7' }}>
@@ -37,7 +41,7 @@ export default function SectionPage({ unit, onSelectSubUnit, onBack, mascotId })
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {subUnits.map((sub, idx) => {
             const progress = getProgress(idx)
-            const isLocked = idx > 3
+            const isLocked = false
             return (
               <motion.button key={sub.slug}
                 initial={{ opacity: 0, y: 20 }}

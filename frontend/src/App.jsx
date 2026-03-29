@@ -16,6 +16,7 @@ import AchievementsPage from './pages/AchievementsPage'
 import { UNITS } from './lib/units'
 import { generateMockQuiz } from './lib/mockQuiz'
 import { fetchQuizQuestions } from './lib/quizApi'
+import { saveQuizResult } from './lib/progressStore'
 
 export default function App() {
   const [page, setPage] = useState('landing')
@@ -111,7 +112,20 @@ export default function App() {
         subUnit={selectedSubUnit}
         mascotId={mascotId}
         loading={quizLoading}
-        onComplete={(result) => { setQuizResult(result); navigate('quizResult') }}
+        onComplete={(result) => {
+          setQuizResult(result)
+          saveQuizResult({
+            subUnitSlug: selectedSubUnit?.slug || '',
+            unitTitle: selectedUnit?.title || '',
+            subUnitTitle: selectedSubUnit?.title || '',
+            subject,
+            grade,
+            totalQuestions: result.totalQuestions,
+            correctCount: result.correctCount,
+            xpGained: result.xpGained,
+          })
+          navigate('quizResult')
+        }}
         onQuit={() => navigate('section')}
       />
 

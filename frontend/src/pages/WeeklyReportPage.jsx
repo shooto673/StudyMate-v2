@@ -1,39 +1,7 @@
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, TrendingUp, TrendingDown, Target, Zap, Flame, BookOpen, Calculator, Calendar, Trophy, Star, Award } from 'lucide-react'
-
-const MOCK_REPORT = {
-  weekLabel: '3/22 〜 3/28',
-  totalQuestions: 87,
-  prevWeekQuestions: 65,
-  accuracy: 81,
-  prevAccuracy: 76,
-  streak: 5,
-  bestDay: '土曜日',
-  bestDayCount: 22,
-  xpEarned: 680,
-  levelUps: 1,
-  dailyData: [
-    { day: '月', count: 8, accuracy: 75 },
-    { day: '火', count: 12, accuracy: 83 },
-    { day: '水', count: 15, accuracy: 80 },
-    { day: '木', count: 0, accuracy: 0 },
-    { day: '金', count: 10, accuracy: 78 },
-    { day: '土', count: 22, accuracy: 91 },
-    { day: '日', count: 20, accuracy: 82 },
-  ],
-  subjectBreakdown: [
-    { subject: '英語', icon: BookOpen, color: '#4DABF7', questions: 52, accuracy: 84, bestUnit: 'be動詞' },
-    { subject: '数学', icon: Calculator, color: '#FF922B', questions: 35, accuracy: 76, bestUnit: '正負の数' },
-  ],
-  weakPoints: [
-    { unit: '一般動詞', accuracy: 55, subject: '英語' },
-    { unit: '1次方程式', accuracy: 60, subject: '数学' },
-  ],
-  achievements: [
-    { title: '5日連続ログイン！', emoji: '🔥' },
-    { title: '正答率80%突破！', emoji: '🎯' },
-  ],
-}
+import { getWeeklyReportData, getStreak } from '../lib/progressStore'
 
 function TrendBadge({ current, previous }) {
   const diff = current - previous
@@ -85,7 +53,34 @@ function BarChart({ data, theme = 'count' }) {
 }
 
 export default function WeeklyReportPage({ mascotId, onBack }) {
-  const r = MOCK_REPORT
+  const reportData = useMemo(() => getWeeklyReportData(), [])
+  const streak = useMemo(() => getStreak(), [])
+
+  const bestDay = reportData.dailyData.reduce((best, d) => d.count > best.count ? d : best, { day: '-', count: 0 })
+
+  const achievements = []
+  if (streak.current >= 3) achievements.push({ title: `${streak.current}日連続ログイン！`, emoji: '🔥' })
+  if (reportData.accuracy >= 80) achievements.push({ title: '正答率80%突破！', emoji: '🎯' })
+  if (reportData.totalQuestions >= 50) achievements.push({ title: '50問突破！', emoji: '🏆' })
+  if (achievements.length === 0) achievements.push({ title: '今週も頑張ろう！', emoji: '💪' })
+
+  const r = {
+    weekLabel: reportData.weekLabel,
+    totalQuestions: reportData.totalQuestions,
+    prevWeekQuestions: reportData.prevWeekQuestions,
+    accuracy: reportData.accuracy,
+    prevAccuracy: reportData.prevAccuracy,
+    xpEarned: reportData.xpEarned,
+    bestDay: bestDay.day + '曜日',
+    bestDayCount: bestDay.count,
+    dailyData: reportData.dailyData,
+    subjectBreakdown: [
+      { subject: '英語', icon: BookOpen, color: '#4DABF7', questions: reportData.subjectBreakdown.english.questions, accuracy: reportData.subjectBreakdown.english.accuracy, bestUnit: '-' },
+      { subject: '数学', icon: Calculator, color: '#FF922B', questions: reportData.subjectBreakdown.math.questions, accuracy: reportData.subjectBreakdown.math.accuracy, bestUnit: '-' },
+    ],
+    weakPoints: reportData.weakPoints,
+    achievements,
+  }
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-happy.png' : '/mascots/taylor/mascot-cheering.png'
 
   return (

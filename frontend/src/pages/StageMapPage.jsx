@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Flame, BookOpen, Calculator, Trophy, Star, Lock, User, Check } from 'lucide-react'
 import AdBanner from '../components/AdBanner'
+import { getSubUnitPercent } from '../lib/progressStore'
 
 const SUBJECT_THEME = {
   english: { color: '#4DABF7', light: '#E7F5FF', icon: BookOpen, label: '英語' },
@@ -205,10 +206,20 @@ export default function StageMapPage({ grade, subject, units, mascotId, onSelect
   const totalHeight = units.length * 120 + 200
 
   const getStatus = (idx) => {
-    if (idx < 2) return 'mastered'
-    if (idx === 2) return 'in-progress'
-    if (idx === 3) return 'available'
-    return 'locked'
+    const unit = units[idx]
+    if (!unit) return 'locked'
+    const subUnits = unit.subUnits || []
+    const progresses = subUnits.map(s => getSubUnitPercent(s.slug))
+    const allMastered = progresses.length > 0 && progresses.every(p => p >= 80)
+    const anyAttempted = progresses.some(p => p > 0)
+    if (allMastered) return 'mastered'
+    if (anyAttempted) return 'in-progress'
+    // First unit or previous unit has progress → available
+    if (idx === 0) return 'available'
+    const prevUnit = units[idx - 1]
+    const prevProgresses = (prevUnit?.subUnits || []).map(s => getSubUnitPercent(s.slug))
+    if (prevProgresses.some(p => p > 0)) return 'available'
+    return 'available' // Keep all units accessible for now
   }
 
   return (
