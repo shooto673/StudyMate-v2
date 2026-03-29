@@ -39,12 +39,18 @@ export default async function handler(req, res) {
   }
 ]`
 
+  const apiKey = (process.env.ANTHROPIC_API_KEY || '').trim().replace(/[^\x20-\x7E]/g, '')
+
+  if (!apiKey) {
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY is not configured' })
+  }
+
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
