@@ -17,9 +17,10 @@ export async function fetchQuizQuestions({ unitTitle, subUnitTitle, subject, gra
     const data = await res.json()
     return data.questions.map((q, i) => ({
       id: i + 1,
+      type: '4choice',
       question: q.question,
       choices: q.choices,
-      correctIndex: q.correctIndex,
+      answer: q.correctIndex,
       explanation: q.explanation,
     }))
   } catch (err) {
