@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import CharacterSelectPage from './pages/CharacterSelectPage'
@@ -15,6 +15,7 @@ import SettingsPage from './pages/SettingsPage'
 import AchievementsPage from './pages/AchievementsPage'
 import { UNITS } from './lib/units'
 import { generateMockQuiz } from './lib/mockQuiz'
+import { fetchQuizQuestions } from './lib/quizApi'
 
 export default function App() {
   const [page, setPage] = useState('landing')
@@ -25,6 +26,8 @@ export default function App() {
   const [selectedSubUnit, setSelectedSubUnit] = useState(null)
   const [quizQuestions, setQuizQuestions] = useState([])
   const [quizResult, setQuizResult] = useState(null)
+  const [quizLoading, setQuizLoading] = useState(false)
+  const [quizError, setQuizError] = useState(null)
   const [profile] = useState({ displayName: '冒険者', grade: 'j1' })
   const [userPlan, setUserPlan] = useState('free')
 
@@ -35,12 +38,31 @@ export default function App() {
 
   const navigate = (p) => setPage(p)
 
-  const startQuiz = (subUnit) => {
+  const startQuiz = useCallback(async (subUnit) => {
     setSelectedSubUnit(subUnit)
-    setQuizQuestions(generateMockQuiz(subUnit))
+    setQuizQuestions([])
     setQuizResult(null)
+    setQuizError(null)
+    setQuizLoading(true)
     navigate('quiz')
-  }
+
+    const questions = await fetchQuizQuestions({
+      unitTitle: selectedUnit?.title || subUnit.unitTitle || '',
+      subUnitTitle: subUnit.title,
+      subject,
+      grade,
+      count: 5,
+    })
+
+    if (questions) {
+      setQuizQuestions(questions)
+    } else {
+      // Fallback to mock data if API fails
+      setQuizQuestions(generateMockQuiz(subUnit))
+      setQuizError('AI問題生成に失敗しました。モック問題を表示しています。')
+    }
+    setQuizLoading(false)
+  }, [selectedUnit, subject, grade])
 
   switch (page) {
     case 'landing':
@@ -88,6 +110,7 @@ export default function App() {
         questions={quizQuestions}
         subUnit={selectedSubUnit}
         mascotId={mascotId}
+        loading={quizLoading}
         onComplete={(result) => { setQuizResult(result); navigate('quizResult') }}
         onQuit={() => navigate('section')}
       />

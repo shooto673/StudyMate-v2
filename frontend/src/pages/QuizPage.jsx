@@ -19,7 +19,7 @@ const MASCOT_STATES = {
 const CHOICE_COLORS = ['#6C63FF', '#FF6B6B', '#51CF66', '#FF922B']
 const CHOICE_LABELS = ['A', 'B', 'C', 'D']
 
-export default function QuizPage({ questions, subUnit, mascotId, onComplete, onQuit }) {
+export default function QuizPage({ questions, subUnit, mascotId, loading, onComplete, onQuit }) {
   const [currentIdx, setCurrentIdx] = useState(0)
   const [selectedChoice, setSelectedChoice] = useState(null)
   const [isAnswered, setIsAnswered] = useState(false)
@@ -108,6 +108,42 @@ export default function QuizPage({ questions, subUnit, mascotId, onComplete, onQ
     if (idx === q.answer) return { bg: '#EBFBEE', border: '2px solid #51CF66', text: '#2b8a3e', badge: '#51CF66' }
     if (idx === selectedChoice && !isCorrect) return { bg: '#FFF0F0', border: '2px solid #FF6B6B', text: '#c92a2a', badge: '#FF6B6B' }
     return { bg: '#f9fafb', border: '2px solid #e5e7eb', text: '#b0b0b0', badge: '#d1d5db' }
+  }
+
+  // Loading state while AI generates questions
+  if (loading || !questions || questions.length === 0) {
+    const mascotSrc = MASCOT_STATES[mascotId]?.normal || MASCOT_STATES.taylor.normal
+    return (
+      <div style={{
+        minHeight: '100dvh', background: 'linear-gradient(180deg, #FFFDF7 0%, #F0EDFF 100%)',
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 20, padding: 24,
+      }}>
+        <motion.img src={mascotSrc} alt="mascot"
+          animate={{ y: [0, -10, 0], rotate: [0, 5, -5, 0] }}
+          transition={{ duration: 2, repeat: Infinity }}
+          style={{ width: 100, height: 100, objectFit: 'contain' }} />
+        <motion.div
+          animate={{ opacity: [0.5, 1, 0.5] }}
+          transition={{ duration: 1.5, repeat: Infinity }}
+          style={{ textAlign: 'center' }}>
+          <div className="font-black" style={{ fontSize: 20, color: '#1a1a2e', marginBottom: 8 }}>
+            問題を準備中...
+          </div>
+          <div style={{ fontSize: 14, color: '#9ca3af' }}>
+            AIがキミにピッタリの問題を作ってるよ！
+          </div>
+        </motion.div>
+        <motion.div
+          animate={{ width: ['0%', '70%', '90%', '95%'] }}
+          transition={{ duration: 4, ease: 'easeOut' }}
+          style={{ height: 6, borderRadius: 999, background: 'linear-gradient(90deg, #6C63FF, #38BDF8)', maxWidth: 200 }}
+        />
+        <button onClick={onQuit}
+          style={{ marginTop: 12, background: 'none', border: 'none', color: '#9ca3af', fontSize: 13, cursor: 'pointer' }}>
+          ← 戻る
+        </button>
+      </div>
+    )
   }
 
   return (
