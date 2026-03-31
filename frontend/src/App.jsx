@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
 import LandingPage from './pages/LandingPage'
 import LoginPage from './pages/LoginPage'
 import CharacterSelectPage from './pages/CharacterSelectPage'
@@ -17,11 +17,13 @@ import { UNITS } from './lib/units'
 import { generateMockQuiz } from './lib/mockQuiz'
 import { fetchQuizQuestions } from './lib/quizApi'
 import { saveQuizResult } from './lib/progressStore'
+import { useAuth } from './lib/useAuth'
 
 export default function App() {
+  const auth = useAuth()
   const [page, setPage] = useState('landing')
-  const [mascotId, setMascotId] = useState('taylor')
-  const [grade, setGrade] = useState('j1')
+  const [mascotId, setMascotId] = useState(() => localStorage.getItem('sm_mascot') || 'taylor')
+  const [grade, setGrade] = useState(() => localStorage.getItem('sm_grade') || 'j1')
   const [subject, setSubject] = useState('english')
   const [selectedUnit, setSelectedUnit] = useState(null)
   const [selectedSubUnit, setSelectedSubUnit] = useState(null)
@@ -29,8 +31,33 @@ export default function App() {
   const [quizResult, setQuizResult] = useState(null)
   const [quizLoading, setQuizLoading] = useState(false)
   const [quizError, setQuizError] = useState(null)
-  const [profile] = useState({ displayName: '冒険者', grade: 'j1' })
   const [userPlan, setUserPlan] = useState('free')
+  const [authError, setAuthError] = useState(null)
+
+  // Persist mascot and grade choices
+  useEffect(() => { localStorage.setItem('sm_mascot', mascotId) }, [mascotId])
+  useEffect(() => { localStorage.setItem('sm_grade', grade) }, [grade])
+
+  // Auto-redirect authenticated users past login
+  useEffect(() => {
+    if (!auth.loading && auth.isAuthenticated) {
+      if (page === 'landing' || page === 'login') {
+        // Check if user has completed onboarding
+        const onboarded = localStorage.getItem('sm_onboarded')
+        if (onboarded) {
+          setPage('stageMap')
+        } else {
+          setPage('characterSelect')
+        }
+      }
+    }
+  }, [auth.loading, auth.isAuthenticated])
+
+  const profile = useMemo(() => ({
+    displayName: auth.displayName,
+    email: auth.email,
+    grade,
+  }), [auth.displayName, auth.email, grade])
 
   const filteredUnits = useMemo(() =>
     UNITS.filter(u => u.grade === grade && u.subject === subject),
@@ -38,6 +65,38 @@ export default function App() {
   )
 
   const navigate = (p) => setPage(p)
+
+  const handleSignUp = useCallback(async (email, password, displayName) => {
+    setAuthError(null)
+    try {
+      await auth.signUp(email, password, displayName)
+      navigate('characterSelect')
+    } catch (err) {
+      setAuthError(err.message)
+      throw err
+    }
+  }, [auth])
+
+  const handleSignIn = useCallback(async (email, password) => {
+    setAuthError(null)
+    try {
+      await auth.signIn(email, password)
+      const onboarded = localStorage.getItem('sm_onboarded')
+      navigate(onboarded ? 'stageMap' : 'characterSelect')
+    } catch (err) {
+      setAuthError(err.message)
+      throw err
+    }
+  }, [auth])
+
+  const handleSignOut = useCallback(async () => {
+    await auth.signOut()
+    setPage('landing')
+  }, [auth])
+
+  const completeOnboarding = useCallback(() => {
+    localStorage.setItem('sm_onboarded', '1')
+  }, [])
 
   const startQuiz = useCallback(async (subUnit) => {
     setSelectedSubUnit(subUnit)
@@ -58,12 +117,28 @@ export default function App() {
     if (questions) {
       setQuizQuestions(questions)
     } else {
-      // Fallback to mock data if API fails
       setQuizQuestions(generateMockQuiz(subUnit))
       setQuizError('AI問題生成に失敗しました。モック問題を表示しています。')
     }
     setQuizLoading(false)
   }, [selectedUnit, subject, grade])
+
+  // Show loading screen while checking auth
+  if (auth.loading) {
+    return (
+      <div style={{ minHeight: '100dvh', background: '#FFFDF7', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: '50%', margin: '0 auto 16px',
+            border: '4px solid #e5e7eb', borderTopColor: '#6C63FF',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+          <p style={{ color: '#9ca3af', fontSize: 14, fontWeight: 600 }}>読み込み中...</p>
+        </div>
+      </div>
+    )
+  }
 
   switch (page) {
     case 'landing':
@@ -72,8 +147,10 @@ export default function App() {
     case 'login':
       return <LoginPage
         onNavigate={navigate}
-        onEmailLogin={async () => navigate('characterSelect')}
-        onEmailSignUp={async () => navigate('characterSelect')}
+        onEmailLogin={handleSignIn}
+        onEmailSignUp={handleSignUp}
+        onGoogleLogin={auth.signInWithGoogle}
+        authError={authError}
       />
 
     case 'characterSelect':
@@ -81,7 +158,7 @@ export default function App() {
 
     case 'gradeSelect':
       return <GradeSelectPage
-        onSelect={(g) => { setGrade(g); navigate('stageMap') }}
+        onSelect={(g) => { setGrade(g); completeOnboarding(); navigate('stageMap') }}
         mascotId={mascotId}
       />
 
@@ -149,6 +226,7 @@ export default function App() {
         onBack={() => navigate('stageMap')}
         onNavigate={navigate}
         onGradeChange={(g) => setGrade(g)}
+        onSignOut={handleSignOut}
       />
 
     case 'weeklyReport':
@@ -180,6 +258,7 @@ export default function App() {
         userPlan={userPlan}
         onBack={() => navigate('mypage')}
         onNavigate={navigate}
+        onSignOut={handleSignOut}
       />
 
     case 'achievements':

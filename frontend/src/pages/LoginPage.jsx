@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Mail, Lock, User, ChevronDown, Eye, EyeOff, Loader2 } from 'lucide-react'
 
-export default function LoginPage({ onNavigate, onEmailLogin, onEmailSignUp }) {
+export default function LoginPage({ onNavigate, onEmailLogin, onEmailSignUp, onGoogleLogin, authError }) {
   const [tab, setTab] = useState('register')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -23,14 +23,11 @@ export default function LoginPage({ onNavigate, onEmailLogin, onEmailSignUp }) {
     if (password !== passwordConfirm) return setError('パスワードが一致しないよ')
     setIsSubmitting(true)
     try {
-      if (onEmailSignUp) {
-        await onEmailSignUp(email, password, displayName)
-        setSuccess('確認メールを送信しました！メールを確認してね 📬')
-      } else {
-        onNavigate('characterSelect')
-      }
+      await onEmailSignUp(email, password, displayName)
+      // Navigation is handled by App.jsx after auth state changes
     } catch (e) {
-      setError(e.message || '登録に失敗しました')
+      const msg = e.message || '登録に失敗しました'
+      setError(msg.includes('already registered') ? 'このメールアドレスは既に登録されています' : msg)
     } finally { setIsSubmitting(false) }
   }
 
@@ -39,12 +36,11 @@ export default function LoginPage({ onNavigate, onEmailLogin, onEmailSignUp }) {
     if (!email.trim() || !password.trim()) return setError('メールアドレスとパスワードを入力してね')
     setIsSubmitting(true)
     try {
-      if (onEmailLogin) {
-        await onEmailLogin(email, password)
-      }
-      onNavigate('characterSelect')
+      await onEmailLogin(email, password)
+      // Navigation is handled by App.jsx after auth state changes
     } catch (e) {
-      setError(e.message || 'ログインに失敗しました')
+      const msg = e.message || 'ログインに失敗しました'
+      setError(msg.includes('Invalid login') ? 'メールアドレスまたはパスワードが正しくありません' : msg)
     } finally { setIsSubmitting(false) }
   }
 
@@ -191,7 +187,7 @@ export default function LoginPage({ onNavigate, onEmailLogin, onEmailSignUp }) {
           {/* Social Login Buttons */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <button
-              onClick={() => { /* TODO: Supabase Google OAuth */ onNavigate('characterSelect') }}
+              onClick={() => { onGoogleLogin?.() }}
               style={{
                 width: '100%', padding: '14px 0', borderRadius: 14, border: '2px solid #e5e7eb',
                 background: '#fff', cursor: 'pointer', fontSize: 15, fontWeight: 700, color: '#1a1a2e',
@@ -211,7 +207,7 @@ export default function LoginPage({ onNavigate, onEmailLogin, onEmailSignUp }) {
             </button>
 
             <button
-              onClick={() => { /* TODO: Supabase Apple OAuth */ onNavigate('characterSelect') }}
+              onClick={() => { onGoogleLogin?.() /* Apple uses same OAuth flow for now */ }}
               style={{
                 width: '100%', padding: '14px 0', borderRadius: 14, border: '2px solid #e5e7eb',
                 background: '#000', cursor: 'pointer', fontSize: 15, fontWeight: 700, color: '#fff',

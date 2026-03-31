@@ -8,11 +8,17 @@ const NOTIFICATION_OPTIONS = [
   { id: 'achievement', label: '実績達成通知', desc: 'バッジ獲得時にお知らせ' },
 ]
 
-export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNavigate }) {
-  const [notifications, setNotifications] = useState({ daily: true, weekly: true, achievement: true })
-  const [soundEnabled, setSoundEnabled] = useState(true)
-  const [darkMode, setDarkMode] = useState(false)
+export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNavigate, onSignOut }) {
+  const [notifications, setNotifications] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('sm_notifications')) || { daily: true, weekly: true, achievement: true } } catch { return { daily: true, weekly: true, achievement: true } }
+  })
+  const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('sm_sound') !== 'false')
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('sm_darkmode') === 'true')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+
+  const updateNotifications = (v) => { setNotifications(v); localStorage.setItem('sm_notifications', JSON.stringify(v)) }
+  const updateSound = (v) => { setSoundEnabled(v); localStorage.setItem('sm_sound', String(v)) }
+  const updateDarkMode = (v) => { setDarkMode(v); localStorage.setItem('sm_darkmode', String(v)) }
 
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-happy.png' : '/mascots/taylor/mascot-normal.png'
   const mascotName = mascotId === 'mona' ? 'モナちゃん' : 'テイラーくん'
@@ -126,7 +132,7 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
                 <div style={{ fontSize: 14, color: '#1a1a2e', fontWeight: 600 }}>{opt.label}</div>
                 <div style={{ fontSize: 12, color: '#9ca3af' }}>{opt.desc}</div>
               </div>
-              <Toggle value={notifications[opt.id]} onChange={(v) => setNotifications(prev => ({ ...prev, [opt.id]: v }))} />
+              <Toggle value={notifications[opt.id]} onChange={(v) => updateNotifications({ ...notifications, [opt.id]: v })} />
             </div>
           ))}
         </motion.div>
@@ -146,7 +152,7 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
                 <div style={{ fontSize: 12, color: '#9ca3af' }}>正解・不正解のサウンド</div>
               </div>
             </div>
-            <Toggle value={soundEnabled} onChange={setSoundEnabled} />
+            <Toggle value={soundEnabled} onChange={updateSound} />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid #f3f4f6' }}>
@@ -157,7 +163,7 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
                 <div style={{ fontSize: 12, color: '#9ca3af' }}>目に優しい暗いテーマ</div>
               </div>
             </div>
-            <Toggle value={darkMode} onChange={setDarkMode} />
+            <Toggle value={darkMode} onChange={updateDarkMode} />
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid #f3f4f6' }}>
@@ -199,7 +205,7 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
         {/* Danger Zone */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
           style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
-          <button style={{
+          <button onClick={onSignOut} style={{
             width: '100%', padding: '14px 0', borderRadius: 14, cursor: 'pointer',
             background: '#fff', border: '1px solid #e5e7eb', color: '#6b7280',
             fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,

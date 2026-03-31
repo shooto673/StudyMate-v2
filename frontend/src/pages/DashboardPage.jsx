@@ -50,7 +50,7 @@ function WeeklyChart({ data }) {
   )
 }
 
-export default function DashboardPage({ mascotId, profile, grade, userPlan, onBack, onNavigate, onGradeChange }) {
+export default function DashboardPage({ mascotId, profile, grade, userPlan, onBack, onNavigate, onGradeChange, onSignOut }) {
   const [tab, setTab] = useState('stats')
   const agg = useMemo(() => getAggregateStats(), [])
   const english = useMemo(() => getSubjectStats('english'), [])
@@ -329,7 +329,7 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
               <h3 className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 14 }}>アカウント情報</h3>
               {[
                 { label: 'ニックネーム', value: profile?.displayName || '冒険者' },
-                { label: 'メール', value: 'demo@studymate.app' },
+                { label: 'メール', value: profile?.email || '未設定' },
                 { label: 'バディ', value: mascotId === 'mona' ? 'モナちゃん' : 'テイラーくん' },
                 { label: '登録日', value: '2026年3月15日' },
               ].map((item, i) => (
@@ -367,7 +367,7 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
 
             {/* Danger zone */}
             <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <button style={{
+              <button onClick={onSignOut} style={{
                 width: '100%', padding: '12px 0', borderRadius: 12, cursor: 'pointer',
                 background: '#fff', border: '1px solid #e5e7eb', color: '#6b7280', fontSize: 14, fontWeight: 600,
               }}>
