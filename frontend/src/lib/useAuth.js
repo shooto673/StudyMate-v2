@@ -55,6 +55,15 @@ export function useAuth() {
     return data
   }, [])
 
+  const updateDisplayName = useCallback(async (newName) => {
+    const { data, error } = await supabase.auth.updateUser({
+      data: { display_name: newName },
+    })
+    if (error) throw error
+    setUser(data.user)
+    return data
+  }, [])
+
   return {
     user,
     loading,
@@ -62,8 +71,9 @@ export function useAuth() {
     signIn,
     signOut,
     signInWithGoogle,
+    updateDisplayName,
     isAuthenticated: !!user,
-    displayName: user?.user_metadata?.display_name || '冒険者',
+    displayName: user?.user_metadata?.display_name || user?.user_metadata?.full_name || user?.user_metadata?.name || '冒険者',
     email: user?.email || '',
   }
 }

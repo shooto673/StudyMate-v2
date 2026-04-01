@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { ArrowLeft, Flame, Trophy, Target, Zap, BookOpen, Calculator, Crown, ChevronRight, Settings, Star, TrendingUp, Calendar, Award, BarChart3, Users, Gem } from 'lucide-react'
+import { ArrowLeft, Flame, Trophy, Target, Zap, BookOpen, Calculator, Crown, ChevronRight, Settings, Star, TrendingUp, Calendar, Award, BarChart3, Users, Gem, Pencil, Check, X } from 'lucide-react'
 import { getAggregateStats, getSubjectStats, getWeeklyActivity, getStreak, getRecentSessions } from '../lib/progressStore'
 
 function StatCard({ icon: Icon, label, value, sub, color, delay = 0 }) {
@@ -50,8 +50,11 @@ function WeeklyChart({ data }) {
   )
 }
 
-export default function DashboardPage({ mascotId, profile, grade, userPlan, onBack, onNavigate, onGradeChange, onSignOut }) {
+export default function DashboardPage({ mascotId, profile, grade, userPlan, onBack, onNavigate, onGradeChange, onSignOut, onUpdateName }) {
   const [tab, setTab] = useState('stats')
+  const [editingName, setEditingName] = useState(false)
+  const [newName, setNewName] = useState(profile?.displayName || '')
+  const [nameSaving, setNameSaving] = useState(false)
   const agg = useMemo(() => getAggregateStats(), [])
   const english = useMemo(() => getSubjectStats('english'), [])
   const math = useMemo(() => getSubjectStats('math'), [])
@@ -327,8 +330,61 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
             {/* Account Info */}
             <div style={{ background: '#fff', borderRadius: 18, padding: '20px 18px', border: '1px solid #f1f1f1', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
               <h3 className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 14 }}>アカウント情報</h3>
+              {/* Nickname - editable */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '12px 0', borderBottom: '1px solid #f3f4f6',
+              }}>
+                <span style={{ fontSize: 14, color: '#6b7280' }}>ニックネーム</span>
+                {editingName ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={e => setNewName(e.target.value)}
+                      autoFocus
+                      maxLength={20}
+                      style={{
+                        fontSize: 14, fontWeight: 700, color: '#1a1a2e', border: '2px solid #6C63FF',
+                        borderRadius: 8, padding: '4px 8px', width: 120, outline: 'none', fontFamily: 'inherit',
+                      }}
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          if (newName.trim() && onUpdateName) {
+                            setNameSaving(true)
+                            onUpdateName(newName.trim()).then(() => { setEditingName(false) }).catch(() => {}).finally(() => setNameSaving(false))
+                          }
+                        }
+                        if (e.key === 'Escape') { setEditingName(false); setNewName(profile?.displayName || '') }
+                      }}
+                    />
+                    <button onClick={() => {
+                      if (newName.trim() && onUpdateName) {
+                        setNameSaving(true)
+                        onUpdateName(newName.trim()).then(() => { setEditingName(false) }).catch(() => {}).finally(() => setNameSaving(false))
+                      }
+                    }} disabled={nameSaving || !newName.trim()}
+                      style={{ background: '#6C63FF', border: 'none', borderRadius: 6, padding: 4, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <Check size={14} color="#fff" />
+                    </button>
+                    <button onClick={() => { setEditingName(false); setNewName(profile?.displayName || '') }}
+                      style={{ background: '#e5e7eb', border: 'none', borderRadius: 6, padding: 4, cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <X size={14} color="#6b7280" />
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span className="font-bold" style={{ fontSize: 14, color: '#1a1a2e' }}>{profile?.displayName || '冒険者'}</span>
+                    <button onClick={() => { setNewName(profile?.displayName || ''); setEditingName(true) }}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center' }}>
+                      <Pencil size={13} color="#9ca3af" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              {/* Other account info */}
               {[
-                { label: 'ニックネーム', value: profile?.displayName || '冒険者' },
                 { label: 'メール', value: profile?.email || '未設定' },
                 { label: 'バディ', value: mascotId === 'mona' ? 'モナちゃん' : 'テイラーくん' },
                 { label: '登録日', value: '2026年3月15日' },

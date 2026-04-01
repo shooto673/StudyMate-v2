@@ -227,6 +227,7 @@ export default function App() {
         onNavigate={navigate}
         onGradeChange={(g) => setGrade(g)}
         onSignOut={handleSignOut}
+        onUpdateName={auth.updateDisplayName}
       />
 
     case 'weeklyReport':
