@@ -4,7 +4,7 @@ import {
   Flame, Zap, Star, Trophy, Shield, BookOpen, Brain,
   ChevronRight, Sparkles, Target, Clock, Users,
   Crown, Gem, Lock, Check, ArrowRight, Play,
-  Swords, Map, Heart
+  Swords, Map, Heart, Gift, UserPlus, Ticket, Copy
 } from 'lucide-react'
 
 /* ───── container helper ───── */
@@ -558,6 +558,134 @@ export default function LandingPage({ onNavigate }) {
               features={[{ text: '問題数 無制限 🔥' }, { text: '週間レポート' }, { text: 'AI弱点分析' }, { text: '保護者レポート共有' }, { text: '実績バッジ' }, { text: '広告なし' }, { text: '優先サポート' }]}
               cta="最強プランではじめる" onAction={() => onNavigate('login')} />
           </div>
+        </Container>
+      </section>
+
+      {/* ─── FRIENDS & RANKING ─── */}
+      <section style={{ padding: '80px 0', overflow: 'hidden' }}>
+        <Container size="lg">
+          <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
+            style={{ textAlign: 'center', marginBottom: 48 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, borderRadius: 999, background: '#EDE9FF', padding: '7px 16px', fontSize: 12, fontWeight: 700, color: '#6C63FF', marginBottom: 14 }}>
+              <Users size={14} /> FRIENDS
+            </span>
+            <h2 className="font-black" style={{ fontSize: 'clamp(1.75rem, 4vw, 2.5rem)' }}>
+              フレンドと
+              <span style={{ background: 'linear-gradient(135deg, #6C63FF, #38BDF8)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>競い合おう！</span>
+            </h2>
+            <p style={{ color: '#6b7280', marginTop: 12, fontSize: 15, lineHeight: 1.8 }}>
+              フレンドコードを共有して仲間を追加。<br />XPランキングで友達と切磋琢磨しよう！
+            </p>
+          </motion.div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 24, maxWidth: 900, margin: '0 auto' }}>
+            {[
+              { icon: UserPlus, color: '#6C63FF', title: 'フレンドを追加', desc: '自分だけのフレンドコード（SM-XXXX）を友達にシェア。簡単に繋がれる！' },
+              { icon: Trophy, color: '#FFD700', title: 'XPランキング', desc: '問題を解いてXPを稼ごう。フレンド内ランキングと全体ランキングで腕試し！' },
+              { icon: Flame, color: '#FF6B6B', title: '一緒にレベルアップ', desc: '友達の進捗が見えるからやる気が出る。みんなで学力アップ！' },
+            ].map((item, i) => (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 40 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true, margin: '-50px' }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                whileHover={{ y: -6 }}
+                style={{
+                  borderRadius: 20, background: '#fff', padding: '32px 24px', textAlign: 'center',
+                  border: '1px solid #f1f1f1', boxShadow: '0 4px 24px rgba(0,0,0,0.06)',
+                }}
+              >
+                <div style={{
+                  width: 56, height: 56, borderRadius: 16, background: `${item.color}15`,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px',
+                }}>
+                  <item.icon size={28} style={{ color: item.color }} />
+                </div>
+                <h3 className="font-bold" style={{ fontSize: 17, color: '#1a1a2e', marginBottom: 8 }}>{item.title}</h3>
+                <p style={{ fontSize: 14, color: '#6b7280', lineHeight: 1.7 }}>{item.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </Container>
+      </section>
+
+      {/* ─── REFERRAL CODE ─── */}
+      <section style={{ background: 'linear-gradient(135deg, #FFF0F5, #EDE9FF, #E7F5FF)', padding: '64px 0', overflow: 'hidden' }}>
+        <Container size="md">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            whileInView={{ opacity: 1, scale: 1 }}
+            viewport={{ once: true }}
+            style={{
+              borderRadius: 28, background: '#fff', padding: '40px 32px', textAlign: 'center',
+              boxShadow: '0 12px 48px rgba(108,99,255,0.12)', border: '2px solid #EDE9FF',
+              position: 'relative', overflow: 'hidden',
+            }}
+          >
+            {/* Background decoration */}
+            <div style={{ position: 'absolute', top: -30, right: -30, width: 120, height: 120, borderRadius: '50%', background: 'linear-gradient(135deg, #FF6B6B20, #FF922B20)', pointerEvents: 'none' }} />
+            <div style={{ position: 'absolute', bottom: -20, left: -20, width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg, #6C63FF15, #38BDF815)', pointerEvents: 'none' }} />
+
+            <div style={{ position: 'relative', zIndex: 1 }}>
+              <motion.div
+                animate={{ rotate: [0, -10, 10, -10, 0] }}
+                transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
+                style={{ display: 'inline-block', marginBottom: 16 }}
+              >
+                <div style={{
+                  width: 64, height: 64, borderRadius: 20,
+                  background: 'linear-gradient(135deg, #FF6B6B, #FF922B)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 8px 24px rgba(255,107,107,0.3)',
+                }}>
+                  <Gift size={32} style={{ color: '#fff' }} />
+                </div>
+              </motion.div>
+
+              <h2 className="font-black" style={{ fontSize: 'clamp(1.5rem, 3.5vw, 2rem)', color: '#1a1a2e', marginBottom: 8 }}>
+                紹介コードで
+                <span style={{ background: 'linear-gradient(135deg, #FF6B6B, #FF922B)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>初月20%オフ！</span>
+              </h2>
+
+              <p style={{ color: '#6b7280', fontSize: 15, lineHeight: 1.8, marginBottom: 24 }}>
+                友達から紹介コードをもらってアカウント登録すると、<br />
+                有料プランが<strong style={{ color: '#FF6B6B' }}>初月20%オフ</strong>で使えるよ！
+              </p>
+
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center', marginBottom: 24 }}>
+                {[
+                  { label: 'Standard', original: '¥699', discount: '¥559', color: '#6C63FF' },
+                  { label: 'Premium', original: '¥999', discount: '¥799', color: '#FFD700' },
+                ].map((p, i) => (
+                  <motion.div key={i}
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true }}
+                    transition={{ delay: 0.2 + i * 0.1 }}
+                    style={{
+                      borderRadius: 16, padding: '16px 24px', background: `${p.color}08`,
+                      border: `2px solid ${p.color}30`, minWidth: 160,
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: p.color, marginBottom: 4 }}>{p.label}</div>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, justifyContent: 'center' }}>
+                      <span style={{ fontSize: 14, color: '#9ca3af', textDecoration: 'line-through' }}>{p.original}</span>
+                      <span className="font-black" style={{ fontSize: 24, color: '#FF6B6B' }}>{p.discount}</span>
+                      <span style={{ fontSize: 12, color: '#9ca3af' }}>/月</span>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+
+              <div style={{
+                display: 'inline-flex', alignItems: 'center', gap: 8, borderRadius: 14,
+                background: '#f9fafb', padding: '12px 20px', border: '2px dashed #d1d5db',
+              }}>
+                <Ticket size={18} style={{ color: '#6C63FF' }} />
+                <span style={{ fontSize: 14, color: '#6b7280' }}>登録画面で紹介コードを入力するだけ！</span>
+              </div>
+            </div>
+          </motion.div>
         </Container>
       </section>
 
