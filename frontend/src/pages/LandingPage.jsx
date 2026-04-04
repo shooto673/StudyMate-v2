@@ -455,7 +455,7 @@ export default function LandingPage({ onNavigate }) {
       </section>
 
       {/* ─── FEATURES ─── */}
-      <section style={{ padding: '80px 0' }}>
+      <section style={{ padding: '80px 0', overflow: 'hidden' }}>
         <Container size="lg">
           <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
             style={{ textAlign: 'center', marginBottom: 48 }}>
@@ -468,7 +468,7 @@ export default function LandingPage({ onNavigate }) {
             </h2>
           </motion.div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: 20 }}>
             <FeatureCard icon={Brain} color="#6C63FF" title="AIが苦手を見抜く" desc="キミの回答パターンをAIが分析。苦手な単元を集中的に出題して、効率よくレベルアップ！" delay={0} badge="AI搭載" />
             <FeatureCard icon={Swords} color="#FF6B6B" title="クエスト形式で攻略" desc="問題を解くたびにXPを獲得！レベルアップして新しいステージをアンロックしよう。" delay={0.1} />
             <FeatureCard icon={Clock} color="#FF922B" title="1日10分でOK" desc="1セッション10問だけ。短いから毎日続けられる。継続は力なり！" delay={0.2} />
