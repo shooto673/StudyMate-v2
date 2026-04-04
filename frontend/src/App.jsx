@@ -19,6 +19,7 @@ import { fetchQuizQuestions } from './lib/quizApi'
 import { saveQuizResult, getAggregateStats } from './lib/progressStore'
 import { useAuth } from './lib/useAuth'
 import { syncProfile, getFriends, getFriendRanking, getGlobalRanking, findUserByFriendCode, addFriend, removeFriend, generateFriendCode } from './lib/friendsStore'
+import { registerReferral, isReferralValid, markReferralUsed, hasDeviceUsedReferral, getReferralInfo } from './lib/referralStore'
 import FriendsPage from './pages/FriendsPage'
 
 export default function App() {
@@ -38,7 +39,7 @@ export default function App() {
   const [friends, setFriends] = useState([])
   const [ranking, setRanking] = useState([])
   const [friendCode, setFriendCode] = useState('')
-  const [referralCode, setReferralCode] = useState(() => localStorage.getItem('sm_referral') || '')
+  const [referralValid, setReferralValid] = useState(() => isReferralValid())
 
   // Persist mascot and grade choices
   useEffect(() => { localStorage.setItem('sm_mascot', mascotId) }, [mascotId])
@@ -109,9 +110,9 @@ export default function App() {
     setAuthError(null)
     try {
       await auth.signUp(email, password, displayName)
-      if (refCode) {
-        localStorage.setItem('sm_referral', refCode)
-        setReferralCode(refCode)
+      if (refCode && !hasDeviceUsedReferral()) {
+        const registered = registerReferral(refCode, email)
+        setReferralValid(registered)
       }
       navigate('characterSelect')
     } catch (err) {
@@ -308,9 +309,17 @@ export default function App() {
       return <SubscriptionPage
         currentPlan={userPlan}
         mascotId={mascotId}
-        referralCode={referralCode}
+        referralValid={referralValid}
+        referralInfo={getReferralInfo()}
         onBack={() => navigate('mypage')}
-        onSelectPlan={(plan) => { setUserPlan(plan); navigate('mypage') }}
+        onSelectPlan={(plan) => {
+          if (referralValid && plan !== 'free') {
+            markReferralUsed()
+            setReferralValid(false)
+          }
+          setUserPlan(plan)
+          navigate('mypage')
+        }}
       />
 
     case 'settings':

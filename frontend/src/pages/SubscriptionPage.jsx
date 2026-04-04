@@ -44,10 +44,10 @@ const PLANS = [
   },
 ]
 
-export default function SubscriptionPage({ currentPlan, mascotId, referralCode, onBack, onSelectPlan }) {
+export default function SubscriptionPage({ currentPlan, mascotId, referralValid, referralInfo, onBack, onSelectPlan }) {
   const [selected, setSelected] = useState(currentPlan || 'free')
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-happy.png' : '/mascots/taylor/mascot-cheering.png'
-  const hasReferral = !!referralCode
+  const hasReferral = !!referralValid
   const discountRate = hasReferral ? 0.8 : 1
 
   return (
@@ -80,7 +80,7 @@ export default function SubscriptionPage({ currentPlan, mascotId, referralCode, 
                 background: 'linear-gradient(135deg, #FF6B6B, #FF922B)', borderRadius: 999,
                 padding: '6px 16px', marginTop: 8, color: '#fff', fontSize: 13, fontWeight: 700,
               }}>
-              <Sparkles size={14} /> 紹介コード適用中！初月20%オフ
+              <Sparkles size={14} /> 紹介コード適用中！初月20%オフ（残り{referralInfo?.daysLeft || 0}日）
             </motion.div>
           )}
         </div>
