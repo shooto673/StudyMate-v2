@@ -2,16 +2,17 @@ import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { ArrowLeft, Flame, Trophy, Target, Zap, BookOpen, Calculator, Crown, ChevronRight, Settings, Star, TrendingUp, Calendar, Award, BarChart3, Users, Gem, Pencil, Check, X } from 'lucide-react'
 import { getAggregateStats, getSubjectStats, getWeeklyActivity, getStreak, getRecentSessions } from '../lib/progressStore'
+import { useTheme } from '../lib/theme'
 
-function StatCard({ icon: Icon, label, value, sub, color, delay = 0 }) {
+function StatCard({ icon: Icon, label, value, sub, color, delay = 0, theme }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay }}
       style={{
-        borderRadius: 18, padding: '18px 16px', background: '#fff',
-        border: '1px solid #f1f1f1', boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+        borderRadius: 18, padding: '18px 16px', background: theme.card,
+        border: `1px solid ${theme.cardBorder}`, boxShadow: `0 2px 10px ${theme.shadow}`,
         display: 'flex', flexDirection: 'column', gap: 8,
       }}
     >
@@ -19,10 +20,10 @@ function StatCard({ icon: Icon, label, value, sub, color, delay = 0 }) {
         <div style={{ width: 34, height: 34, borderRadius: 10, background: `${color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <Icon size={17} style={{ color }} />
         </div>
-        <span style={{ fontSize: 12, color: '#9ca3af', fontWeight: 600 }}>{label}</span>
+        <span style={{ fontSize: 12, color: theme.textMuted, fontWeight: 600 }}>{label}</span>
       </div>
-      <div className="font-black" style={{ fontSize: 26, color: '#1a1a2e' }}>{value}</div>
-      {sub && <span style={{ fontSize: 11, color: '#9ca3af' }}>{sub}</span>}
+      <div className="font-black" style={{ fontSize: 26, color: theme.text }}>{value}</div>
+      {sub && <span style={{ fontSize: 11, color: theme.textMuted }}>{sub}</span>}
     </motion.div>
   )
 }
@@ -51,6 +52,7 @@ function WeeklyChart({ data }) {
 }
 
 export default function DashboardPage({ mascotId, profile, grade, userPlan, onBack, onNavigate, onGradeChange, onSignOut, onUpdateName }) {
+  const { theme } = useTheme()
   const [tab, setTab] = useState('stats')
   const [editingName, setEditingName] = useState(false)
   const [newName, setNewName] = useState(profile?.displayName || '')
@@ -84,7 +86,7 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
   const xpProgress = agg.xpToNext > 0 ? ((agg.xpInLevel || 0) / agg.xpToNext) * 100 : 0
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#FFFDF7' }}>
+    <div style={{ minHeight: '100dvh', background: theme.bg }}>
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #6C63FF, #38BDF8)', padding: '16px 20px 80px', position: 'relative' }}>
         <div style={{ maxWidth: 600, margin: '0 auto' }}>
@@ -135,7 +137,7 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
       <div style={{ maxWidth: 600, margin: '-56px auto 0', padding: '0 16px 40px', position: 'relative', zIndex: 1 }}>
 
         {/* Tab Switcher */}
-        <div style={{ display: 'flex', borderRadius: 14, background: '#fff', padding: 4, boxShadow: '0 4px 16px rgba(0,0,0,0.06)', marginBottom: 20 }}>
+        <div style={{ display: 'flex', borderRadius: 14, background: theme.card, padding: 4, boxShadow: `0 4px 16px ${theme.shadow}`, marginBottom: 20 }}>
           {[
             { id: 'stats', label: 'スタッツ' },
             { id: 'history', label: '学習履歴' },
@@ -146,7 +148,7 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
                 flex: 1, padding: '12px 0', borderRadius: 12, fontSize: 14, fontWeight: 700,
                 border: 'none', cursor: 'pointer', transition: 'all 0.2s',
                 background: tab === t.id ? 'linear-gradient(135deg, #6C63FF, #38BDF8)' : 'transparent',
-                color: tab === t.id ? '#fff' : '#9ca3af',
+                color: tab === t.id ? '#fff' : theme.textMuted,
               }}>
               {t.label}
             </button>
@@ -158,21 +160,21 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
           <>
             {/* Main Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
-              <StatCard icon={Target} label="正答率" value={`${stats.accuracy}%`} color="#6C63FF" delay={0.05} />
-              <StatCard icon={Flame} label="連続ストリーク" value={`${stats.streak}日`} sub={`最長: ${stats.bestStreak}日`} color="#FF6B6B" delay={0.1} />
-              <StatCard icon={Trophy} label="解いた問題数" value={stats.totalQuestions} color="#FFD700" delay={0.15} />
-              <StatCard icon={Zap} label="獲得XP" value={stats.xp} color="#FF922B" delay={0.2} />
+              <StatCard icon={Target} label="正答率" value={`${stats.accuracy}%`} color="#6C63FF" delay={0.05} theme={theme} />
+              <StatCard icon={Flame} label="連続ストリーク" value={`${stats.streak}日`} sub={`最長: ${stats.bestStreak}日`} color="#FF6B6B" delay={0.1} theme={theme} />
+              <StatCard icon={Trophy} label="解いた問題数" value={stats.totalQuestions} color="#FFD700" delay={0.15} theme={theme} />
+              <StatCard icon={Zap} label="獲得XP" value={stats.xp} color="#FF922B" delay={0.2} theme={theme} />
             </div>
 
             {/* Weekly Activity */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-              style={{ background: '#fff', borderRadius: 18, padding: '20px 18px', border: '1px solid #f1f1f1', boxShadow: '0 2px 10px rgba(0,0,0,0.04)', marginBottom: 20 }}>
+              style={{ background: theme.card, borderRadius: 18, padding: '20px 18px', border: `1px solid ${theme.cardBorder}`, boxShadow: `0 2px 10px ${theme.shadow}`, marginBottom: 20 }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Calendar size={16} style={{ color: '#6C63FF' }} />
-                  <span className="font-bold" style={{ fontSize: 14, color: '#1a1a2e' }}>今週のアクティビティ</span>
+                  <span className="font-bold" style={{ fontSize: 14, color: theme.text }}>今週のアクティビティ</span>
                 </div>
-                <span style={{ fontSize: 12, color: '#9ca3af' }}>合計 {stats.weeklyActivity.reduce((a, b) => a + b, 0)}問</span>
+                <span style={{ fontSize: 12, color: theme.textMuted }}>合計 {stats.weeklyActivity.reduce((a, b) => a + b, 0)}問</span>
               </div>
               <WeeklyChart data={stats.weeklyActivity} />
             </motion.div>
@@ -188,8 +190,8 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
               ].map((item, i) => (
                 <button key={i} onClick={() => onNavigate?.(item.page)}
                   style={{
-                    background: '#fff', borderRadius: 14, padding: '14px 8px', border: '1px solid #f1f1f1',
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.04)', cursor: 'pointer', textAlign: 'center',
+                    background: theme.card, borderRadius: 14, padding: '14px 8px', border: `1px solid ${theme.cardBorder}`,
+                    boxShadow: `0 2px 10px ${theme.shadow}`, cursor: 'pointer', textAlign: 'center',
                     display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   }}>
                   <div style={{
@@ -198,7 +200,7 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
                   }}>
                     <item.icon size={18} style={{ color: item.color }} />
                   </div>
-                  <span style={{ fontSize: 10, color: '#6b7280', fontWeight: 600, lineHeight: 1.3 }}>{item.label}</span>
+                  <span style={{ fontSize: 10, color: theme.textSecondary, fontWeight: 600, lineHeight: 1.3 }}>{item.label}</span>
                 </button>
               ))}
             </motion.div>
@@ -206,36 +208,36 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
             {/* Subject Breakdown */}
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
               style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <h3 className="font-bold" style={{ fontSize: 14, color: '#1a1a2e', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <h3 className="font-bold" style={{ fontSize: 14, color: theme.text, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <TrendingUp size={15} style={{ color: '#6C63FF' }} /> 科目別
               </h3>
               {[
                 { key: 'english', icon: BookOpen, label: '英語', color: '#4DABF7', data: stats.english },
                 { key: 'math', icon: Calculator, label: '数学', color: '#FF922B', data: stats.math },
               ].map(s => (
-                <div key={s.key} style={{ background: '#fff', borderRadius: 16, padding: '16px 18px', border: '1px solid #f1f1f1', boxShadow: '0 2px 10px rgba(0,0,0,0.04)' }}>
+                <div key={s.key} style={{ background: theme.card, borderRadius: 16, padding: '16px 18px', border: `1px solid ${theme.cardBorder}`, boxShadow: `0 2px 10px ${theme.shadow}` }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
                     <div style={{ width: 32, height: 32, borderRadius: 10, background: `${s.color}15`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <s.icon size={16} style={{ color: s.color }} />
                     </div>
-                    <span className="font-bold" style={{ fontSize: 15, color: '#1a1a2e' }}>{s.label}</span>
+                    <span className="font-bold" style={{ fontSize: 15, color: theme.text }}>{s.label}</span>
                   </div>
                   <div style={{ display: 'flex', gap: 16, fontSize: 13 }}>
                     <div>
-                      <div style={{ color: '#9ca3af', marginBottom: 2 }}>問題数</div>
-                      <div className="font-bold" style={{ color: '#1a1a2e' }}>{s.data.total}</div>
+                      <div style={{ color: theme.textMuted, marginBottom: 2 }}>問題数</div>
+                      <div className="font-bold" style={{ color: theme.text }}>{s.data.total}</div>
                     </div>
                     <div>
-                      <div style={{ color: '#9ca3af', marginBottom: 2 }}>正答率</div>
-                      <div className="font-bold" style={{ color: '#1a1a2e' }}>{s.data.accuracy}%</div>
+                      <div style={{ color: theme.textMuted, marginBottom: 2 }}>正答率</div>
+                      <div className="font-bold" style={{ color: theme.text }}>{s.data.accuracy}%</div>
                     </div>
                     <div>
-                      <div style={{ color: '#9ca3af', marginBottom: 2 }}>クリア</div>
-                      <div className="font-bold" style={{ color: '#1a1a2e' }}>{s.data.unitsCleared}/{s.data.totalUnits}</div>
+                      <div style={{ color: theme.textMuted, marginBottom: 2 }}>クリア</div>
+                      <div className="font-bold" style={{ color: theme.text }}>{s.data.unitsCleared}/{s.data.totalUnits}</div>
                     </div>
                   </div>
                   {/* Progress */}
-                  <div style={{ marginTop: 10, height: 6, borderRadius: 999, background: '#f3f4f6' }}>
+                  <div style={{ marginTop: 10, height: 6, borderRadius: 999, background: theme.tabBg }}>
                     <motion.div initial={{ width: 0 }} animate={{ width: `${(s.data.unitsCleared / s.data.totalUnits) * 100}%` }}
                       transition={{ duration: 0.8 }}
                       style={{ height: '100%', borderRadius: 999, background: s.color }} />
@@ -250,15 +252,15 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
         {tab === 'history' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
             style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <h3 className="font-bold" style={{ fontSize: 14, color: '#1a1a2e', marginBottom: 4 }}>最近の学習</h3>
+            <h3 className="font-bold" style={{ fontSize: 14, color: theme.text, marginBottom: 4 }}>最近の学習</h3>
             {stats.recentSessions.map((s, i) => (
               <motion.div key={i}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: i * 0.08 }}
                 style={{
-                  background: '#fff', borderRadius: 16, padding: '14px 18px',
-                  border: '1px solid #f1f1f1', boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+                  background: theme.card, borderRadius: 16, padding: '14px 18px',
+                  border: `1px solid ${theme.cardBorder}`, boxShadow: `0 2px 10px ${theme.shadow}`,
                   display: 'flex', alignItems: 'center', gap: 14,
                 }}
               >
@@ -273,8 +275,8 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
                   }}>{s.score}%</span>
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="font-bold" style={{ fontSize: 14, color: '#1a1a2e' }}>{s.unit}</div>
-                  <div style={{ fontSize: 12, color: '#9ca3af' }}>{s.subUnit}</div>
+                  <div className="font-bold" style={{ fontSize: 14, color: theme.text }}>{s.unit}</div>
+                  <div style={{ fontSize: 12, color: theme.textMuted }}>{s.subUnit}</div>
                 </div>
                 <div style={{ textAlign: 'right', flexShrink: 0 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, color: '#FF922B', fontWeight: 700 }}>
@@ -294,23 +296,23 @@ export default function DashboardPage({ mascotId, profile, grade, userPlan, onBa
 
             {/* Plan Card */}
             <div style={{
-              background: '#fff', borderRadius: 18, padding: '20px 18px',
-              border: '1px solid #f1f1f1', boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+              background: theme.card, borderRadius: 18, padding: '20px 18px',
+              border: `1px solid ${theme.cardBorder}`, boxShadow: `0 2px 10px ${theme.shadow}`,
             }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Crown size={18} style={{ color: '#FFD700' }} />
-                  <span className="font-bold" style={{ fontSize: 15, color: '#1a1a2e' }}>利用プラン</span>
+                  <span className="font-bold" style={{ fontSize: 15, color: theme.text }}>利用プラン</span>
                 </div>
                 <span style={{
                   borderRadius: 999, padding: '4px 12px', fontSize: 12, fontWeight: 700,
-                  background: stats.plan === 'Free' ? '#f3f4f6' : '#EDE9FF',
-                  color: stats.plan === 'Free' ? '#6b7280' : '#6C63FF',
+                  background: stats.plan === 'Free' ? theme.tabBg : '#EDE9FF',
+                  color: stats.plan === 'Free' ? theme.textSecondary : '#6C63FF',
                 }}>
                   {stats.plan}
                 </span>
               </div>
-              <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.6, marginBottom: 14 }}>
+              <p style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 1.6, marginBottom: 14 }}>
                 {stats.plan === 'Free'
                   ? '1日10問まで解けます。アップグレードしてもっと冒険しよう！'
                   : 'すべての機能が使えます。'}

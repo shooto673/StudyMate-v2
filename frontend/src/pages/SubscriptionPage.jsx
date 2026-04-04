@@ -44,9 +44,11 @@ const PLANS = [
   },
 ]
 
-export default function SubscriptionPage({ currentPlan, mascotId, onBack, onSelectPlan }) {
+export default function SubscriptionPage({ currentPlan, mascotId, referralCode, onBack, onSelectPlan }) {
   const [selected, setSelected] = useState(currentPlan || 'free')
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-happy.png' : '/mascots/taylor/mascot-cheering.png'
+  const hasReferral = !!referralCode
+  const discountRate = hasReferral ? 0.8 : 1
 
   return (
     <div style={{ minHeight: '100dvh', background: '#FFFDF7' }}>
@@ -71,6 +73,16 @@ export default function SubscriptionPage({ currentPlan, mascotId, onBack, onSele
             冒険をパワーアップ！
           </h2>
           <p style={{ fontSize: 13, color: '#9ca3af' }}>プランを選んでもっと楽しく学ぼう</p>
+          {hasReferral && (
+            <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                background: 'linear-gradient(135deg, #FF6B6B, #FF922B)', borderRadius: 999,
+                padding: '6px 16px', marginTop: 8, color: '#fff', fontSize: 13, fontWeight: 700,
+              }}>
+              <Sparkles size={14} /> 紹介コード適用中！初月20%オフ
+            </motion.div>
+          )}
         </div>
 
         {/* Plan Cards */}
@@ -123,9 +135,21 @@ export default function SubscriptionPage({ currentPlan, mascotId, onBack, onSele
                   </div>
                   <div>
                     <div className="font-black" style={{ fontSize: 18, color: '#1a1a2e' }}>{plan.label}</div>
-                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
-                      <span className="font-black" style={{ fontSize: 26, color: plan.color }}>{plan.price}</span>
-                      <span style={{ fontSize: 13, color: '#9ca3af' }}>{plan.period}</span>
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, flexWrap: 'wrap' }}>
+                      {hasReferral && plan.id !== 'free' ? (
+                        <>
+                          <span style={{ fontSize: 15, color: '#9ca3af', textDecoration: 'line-through' }}>{plan.price}</span>
+                          <span className="font-black" style={{ fontSize: 26, color: '#FF6B6B' }}>
+                            ¥{Math.round(parseInt(plan.price.replace('¥', '').replace(',', '')) * discountRate)}
+                          </span>
+                          <span style={{ fontSize: 13, color: '#9ca3af' }}>{plan.period}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span className="font-black" style={{ fontSize: 26, color: plan.color }}>{plan.price}</span>
+                          <span style={{ fontSize: 13, color: '#9ca3af' }}>{plan.period}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                   {isCurrentPlan && (

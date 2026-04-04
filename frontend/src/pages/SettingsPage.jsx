@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ArrowLeft, User, Bell, Volume2, Moon, Globe, Shield, Trash2, LogOut, ChevronRight, Check, Crown, Palette } from 'lucide-react'
+import { useTheme } from '../lib/theme'
 
 const NOTIFICATION_OPTIONS = [
   { id: 'daily', label: '毎日のリマインダー', desc: '毎日の学習を忘れないように通知' },
@@ -9,16 +10,15 @@ const NOTIFICATION_OPTIONS = [
 ]
 
 export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNavigate, onSignOut }) {
+  const { isDark, toggle: toggleTheme, theme } = useTheme()
   const [notifications, setNotifications] = useState(() => {
     try { return JSON.parse(localStorage.getItem('sm_notifications')) || { daily: true, weekly: true, achievement: true } } catch { return { daily: true, weekly: true, achievement: true } }
   })
   const [soundEnabled, setSoundEnabled] = useState(() => localStorage.getItem('sm_sound') !== 'false')
-  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('sm_darkmode') === 'true')
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
 
   const updateNotifications = (v) => { setNotifications(v); localStorage.setItem('sm_notifications', JSON.stringify(v)) }
   const updateSound = (v) => { setSoundEnabled(v); localStorage.setItem('sm_sound', String(v)) }
-  const updateDarkMode = (v) => { setDarkMode(v); localStorage.setItem('sm_darkmode', String(v)) }
 
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-happy.png' : '/mascots/taylor/mascot-normal.png'
   const mascotName = mascotId === 'mona' ? 'モナちゃん' : 'テイラーくん'
@@ -40,15 +40,15 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
   )
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#FFFDF7' }}>
+    <div style={{ minHeight: '100dvh', background: theme.bg }}>
       {/* Header */}
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f1f1' }}>
+      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${theme.cardBorder}` }}>
         <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={onBack}
-            style={{ width: 36, height: 36, borderRadius: 10, background: '#f3f4f6', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ArrowLeft size={18} style={{ color: '#6b7280' }} />
+            style={{ width: 36, height: 36, borderRadius: 10, background: theme.tabBg, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ArrowLeft size={18} style={{ color: theme.textSecondary }} />
           </button>
-          <h1 className="font-bold" style={{ fontSize: 18, color: '#1a1a2e' }}>設定</h1>
+          <h1 className="font-bold" style={{ fontSize: 18, color: theme.text }}>設定</h1>
         </div>
       </div>
 
@@ -56,8 +56,8 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
 
         {/* Profile Section */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-          style={{ background: '#fff', borderRadius: 20, padding: '20px 18px', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', border: '1px solid #f1f1f1', marginBottom: 16 }}>
-          <h3 className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          style={{ background: theme.card, borderRadius: 20, padding: '20px 18px', boxShadow: `0 4px 16px ${theme.shadow}`, border: `1px solid ${theme.cardBorder}`, marginBottom: 16 }}>
+          <h3 className="font-bold" style={{ fontSize: 15, color: theme.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             <User size={16} style={{ color: '#6C63FF' }} /> プロフィール
           </h3>
           <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 16 }}>
@@ -68,8 +68,8 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
               <img src={mascotSrc} alt="mascot" style={{ width: 48, height: 48, objectFit: 'contain' }} />
             </div>
             <div style={{ flex: 1 }}>
-              <div className="font-bold" style={{ fontSize: 16, color: '#1a1a2e' }}>{profile?.displayName || '冒険者'}</div>
-              <div style={{ fontSize: 13, color: '#9ca3af' }}>バディ: {mascotName}</div>
+              <div className="font-bold" style={{ fontSize: 16, color: theme.text }}>{profile?.displayName || '冒険者'}</div>
+              <div style={{ fontSize: 13, color: theme.textMuted }}>バディ: {mascotName}</div>
             </div>
           </div>
 
@@ -80,11 +80,11 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
           ].map((item, i) => (
             <div key={i} style={{
               display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              padding: '14px 0', borderTop: '1px solid #f3f4f6',
+              padding: '14px 0', borderTop: `1px solid ${theme.divider}`,
             }}>
-              <span style={{ fontSize: 14, color: '#6b7280' }}>{item.label}</span>
+              <span style={{ fontSize: 14, color: theme.textSecondary }}>{item.label}</span>
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 14, color: '#1a1a2e', fontWeight: 600 }}>{item.value}</span>
+                <span style={{ fontSize: 14, color: theme.text, fontWeight: 600 }}>{item.value}</span>
                 <ChevronRight size={16} style={{ color: '#d1d5db' }} />
               </div>
             </div>
@@ -108,7 +108,7 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
               <Crown size={20} style={{ color: plan === 'premium' ? '#fff' : plan === 'standard' ? '#6C63FF' : '#9ca3af' }} />
             </div>
             <div>
-              <div className="font-bold" style={{ fontSize: 15, color: '#1a1a2e' }}>利用プラン</div>
+              <div className="font-bold" style={{ fontSize: 15, color: theme.text }}>利用プラン</div>
               <div style={{ fontSize: 13, color: '#6C63FF', fontWeight: 700 }}>
                 {plan === 'premium' ? 'Premium' : plan === 'standard' ? 'Standard' : 'Free'}
               </div>
@@ -119,8 +119,8 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
 
         {/* Notifications */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-          style={{ background: '#fff', borderRadius: 20, padding: '20px 18px', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', border: '1px solid #f1f1f1', marginBottom: 16 }}>
-          <h3 className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          style={{ background: theme.card, borderRadius: 20, padding: '20px 18px', boxShadow: `0 4px 16px ${theme.shadow}`, border: `1px solid ${theme.cardBorder}`, marginBottom: 16 }}>
+          <h3 className="font-bold" style={{ fontSize: 15, color: theme.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Bell size={16} style={{ color: '#FF922B' }} /> 通知
           </h3>
           {NOTIFICATION_OPTIONS.map((opt, i) => (
@@ -129,8 +129,8 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
               padding: '12px 0', borderTop: i > 0 ? '1px solid #f3f4f6' : 'none',
             }}>
               <div>
-                <div style={{ fontSize: 14, color: '#1a1a2e', fontWeight: 600 }}>{opt.label}</div>
-                <div style={{ fontSize: 12, color: '#9ca3af' }}>{opt.desc}</div>
+                <div style={{ fontSize: 14, color: theme.text, fontWeight: 600 }}>{opt.label}</div>
+                <div style={{ fontSize: 12, color: theme.textMuted }}>{opt.desc}</div>
               </div>
               <Toggle value={notifications[opt.id]} onChange={(v) => updateNotifications({ ...notifications, [opt.id]: v })} />
             </div>
@@ -139,43 +139,43 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
 
         {/* App Settings */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}
-          style={{ background: '#fff', borderRadius: 20, padding: '20px 18px', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', border: '1px solid #f1f1f1', marginBottom: 16 }}>
-          <h3 className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          style={{ background: theme.card, borderRadius: 20, padding: '20px 18px', boxShadow: `0 4px 16px ${theme.shadow}`, border: `1px solid ${theme.cardBorder}`, marginBottom: 16 }}>
+          <h3 className="font-bold" style={{ fontSize: 15, color: theme.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Palette size={16} style={{ color: '#C084FC' }} /> アプリ設定
           </h3>
 
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Volume2 size={18} style={{ color: '#6b7280' }} />
+              <Volume2 size={18} style={{ color: theme.textSecondary }} />
               <div>
-                <div style={{ fontSize: 14, color: '#1a1a2e', fontWeight: 600 }}>効果音</div>
-                <div style={{ fontSize: 12, color: '#9ca3af' }}>正解・不正解のサウンド</div>
+                <div style={{ fontSize: 14, color: theme.text, fontWeight: 600 }}>効果音</div>
+                <div style={{ fontSize: 12, color: theme.textMuted }}>正解・不正解のサウンド</div>
               </div>
             </div>
             <Toggle value={soundEnabled} onChange={updateSound} />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid #f3f4f6' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: `1px solid ${theme.divider}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Moon size={18} style={{ color: '#6b7280' }} />
+              <Moon size={18} style={{ color: theme.textSecondary }} />
               <div>
-                <div style={{ fontSize: 14, color: '#1a1a2e', fontWeight: 600 }}>ダークモード</div>
-                <div style={{ fontSize: 12, color: '#9ca3af' }}>目に優しい暗いテーマ</div>
+                <div style={{ fontSize: 14, color: theme.text, fontWeight: 600 }}>ダークモード</div>
+                <div style={{ fontSize: 12, color: theme.textMuted }}>目に優しい暗いテーマ</div>
               </div>
             </div>
-            <Toggle value={darkMode} onChange={updateDarkMode} />
+            <Toggle value={isDark} onChange={toggleTheme} />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: '1px solid #f3f4f6' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: `1px solid ${theme.divider}` }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <Globe size={18} style={{ color: '#6b7280' }} />
+              <Globe size={18} style={{ color: theme.textSecondary }} />
               <div>
-                <div style={{ fontSize: 14, color: '#1a1a2e', fontWeight: 600 }}>言語</div>
-                <div style={{ fontSize: 12, color: '#9ca3af' }}>アプリの表示言語</div>
+                <div style={{ fontSize: 14, color: theme.text, fontWeight: 600 }}>言語</div>
+                <div style={{ fontSize: 12, color: theme.textMuted }}>アプリの表示言語</div>
               </div>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: 14, color: '#1a1a2e', fontWeight: 600 }}>日本語</span>
+              <span style={{ fontSize: 14, color: theme.text, fontWeight: 600 }}>日本語</span>
               <ChevronRight size={16} style={{ color: '#d1d5db' }} />
             </div>
           </div>
@@ -183,8 +183,8 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
 
         {/* Data & Privacy */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-          style={{ background: '#fff', borderRadius: 20, padding: '20px 18px', boxShadow: '0 4px 16px rgba(0,0,0,0.05)', border: '1px solid #f1f1f1', marginBottom: 16 }}>
-          <h3 className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+          style={{ background: theme.card, borderRadius: 20, padding: '20px 18px', boxShadow: `0 4px 16px ${theme.shadow}`, border: `1px solid ${theme.cardBorder}`, marginBottom: 16 }}>
+          <h3 className="font-bold" style={{ fontSize: 15, color: theme.text, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Shield size={16} style={{ color: '#51CF66' }} /> データ・プライバシー
           </h3>
           {[
@@ -196,7 +196,7 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               padding: '14px 0', borderTop: i > 0 ? '1px solid #f3f4f6' : 'none', cursor: 'pointer',
             }}>
-              <span style={{ fontSize: 14, color: '#1a1a2e' }}>{item.label}</span>
+              <span style={{ fontSize: 14, color: theme.text }}>{item.label}</span>
               <ChevronRight size={16} style={{ color: '#d1d5db' }} />
             </div>
           ))}
@@ -207,7 +207,7 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
           style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 8 }}>
           <button onClick={onSignOut} style={{
             width: '100%', padding: '14px 0', borderRadius: 14, cursor: 'pointer',
-            background: '#fff', border: '1px solid #e5e7eb', color: '#6b7280',
+            background: '#fff', border: '1px solid #e5e7eb', color: theme.textSecondary,
             fontSize: 14, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
           }}>
             <LogOut size={16} /> ログアウト
@@ -242,15 +242,15 @@ export default function SettingsPage({ mascotId, profile, userPlan, onBack, onNa
                 }}>
                   <Trash2 size={24} style={{ color: '#dc2626' }} />
                 </div>
-                <h3 className="font-bold" style={{ fontSize: 18, color: '#1a1a2e', marginBottom: 8 }}>本当に削除しますか？</h3>
-                <p style={{ fontSize: 13, color: '#6b7280', lineHeight: 1.7, marginBottom: 20 }}>
+                <h3 className="font-bold" style={{ fontSize: 18, color: theme.text, marginBottom: 8 }}>本当に削除しますか？</h3>
+                <p style={{ fontSize: 13, color: theme.textSecondary, lineHeight: 1.7, marginBottom: 20 }}>
                   アカウントを削除すると、すべての学習データが失われます。この操作は取り消せません。
                 </p>
                 <div style={{ display: 'flex', gap: 10 }}>
                   <button onClick={() => setShowDeleteConfirm(false)}
                     style={{
                       flex: 1, padding: '12px 0', borderRadius: 12, border: '1px solid #e5e7eb',
-                      background: '#fff', color: '#6b7280', fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                      background: '#fff', color: theme.textSecondary, fontSize: 14, fontWeight: 600, cursor: 'pointer',
                     }}>
                     キャンセル
                   </button>

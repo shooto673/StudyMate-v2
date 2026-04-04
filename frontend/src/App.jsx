@@ -16,8 +16,10 @@ import AchievementsPage from './pages/AchievementsPage'
 import { UNITS } from './lib/units'
 import { generateMockQuiz } from './lib/mockQuiz'
 import { fetchQuizQuestions } from './lib/quizApi'
-import { saveQuizResult } from './lib/progressStore'
+import { saveQuizResult, getAggregateStats } from './lib/progressStore'
 import { useAuth } from './lib/useAuth'
+import { syncProfile, getFriends, getFriendRanking, getGlobalRanking, findUserByFriendCode, addFriend, removeFriend, generateFriendCode } from './lib/friendsStore'
+import FriendsPage from './pages/FriendsPage'
 
 export default function App() {
   const auth = useAuth()
@@ -33,6 +35,10 @@ export default function App() {
   const [quizError, setQuizError] = useState(null)
   const [userPlan, setUserPlan] = useState('free')
   const [authError, setAuthError] = useState(null)
+  const [friends, setFriends] = useState([])
+  const [ranking, setRanking] = useState([])
+  const [friendCode, setFriendCode] = useState('')
+  const [referralCode, setReferralCode] = useState(() => localStorage.getItem('sm_referral') || '')
 
   // Persist mascot and grade choices
   useEffect(() => { localStorage.setItem('sm_mascot', mascotId) }, [mascotId])
@@ -53,6 +59,39 @@ export default function App() {
     }
   }, [auth.loading, auth.isAuthenticated])
 
+  // Sync profile to Supabase and load friends when authenticated
+  useEffect(() => {
+    if (auth.isAuthenticated && auth.user?.id) {
+      const agg = getAggregateStats()
+      syncProfile(auth.user.id, auth.displayName, agg.totalXp, agg.level)
+        .then(code => { if (code) setFriendCode(code) })
+      getFriends(auth.user.id).then(setFriends)
+      getFriendRanking(auth.user.id).then(setRanking)
+    }
+  }, [auth.isAuthenticated, auth.user?.id, auth.displayName])
+
+  const refreshFriends = useCallback(async () => {
+    if (!auth.user?.id) return
+    const [f, r] = await Promise.all([getFriends(auth.user.id), getFriendRanking(auth.user.id)])
+    setFriends(f)
+    setRanking(r)
+  }, [auth.user?.id])
+
+  const handleAddFriend = useCallback(async (code) => {
+    if (!auth.user?.id) return
+    const found = await findUserByFriendCode(code)
+    if (!found) throw new Error('コードが見つかりません')
+    if (found.id === auth.user.id) throw new Error('自分自身は追加できません')
+    await addFriend(auth.user.id, found.id)
+    await refreshFriends()
+  }, [auth.user?.id, refreshFriends])
+
+  const handleRemoveFriend = useCallback(async (friendId) => {
+    if (!auth.user?.id) return
+    await removeFriend(auth.user.id, friendId)
+    await refreshFriends()
+  }, [auth.user?.id, refreshFriends])
+
   const profile = useMemo(() => ({
     displayName: auth.displayName,
     email: auth.email,
@@ -66,10 +105,14 @@ export default function App() {
 
   const navigate = (p) => setPage(p)
 
-  const handleSignUp = useCallback(async (email, password, displayName) => {
+  const handleSignUp = useCallback(async (email, password, displayName, refCode) => {
     setAuthError(null)
     try {
       await auth.signUp(email, password, displayName)
+      if (refCode) {
+        localStorage.setItem('sm_referral', refCode)
+        setReferralCode(refCode)
+      }
       navigate('characterSelect')
     } catch (err) {
       setAuthError(err.message)
@@ -201,6 +244,11 @@ export default function App() {
             correctCount: result.correctCount,
             xpGained: result.xpGained,
           })
+          // Sync XP to Supabase for ranking
+          if (auth.user?.id) {
+            const agg = getAggregateStats()
+            syncProfile(auth.user.id, auth.displayName, agg.totalXp, agg.level)
+          }
           navigate('quizResult')
         }}
         onQuit={() => navigate('section')}
@@ -244,10 +292,23 @@ export default function App() {
         onNavigate={navigate}
       />
 
+    case 'friends':
+      return <FriendsPage
+        onBack={() => navigate('stageMap')}
+        profile={profile}
+        mascotId={mascotId}
+        friends={friends}
+        ranking={ranking}
+        onAddFriend={handleAddFriend}
+        onRemoveFriend={handleRemoveFriend}
+        friendCode={friendCode}
+      />
+
     case 'subscription':
       return <SubscriptionPage
         currentPlan={userPlan}
         mascotId={mascotId}
+        referralCode={referralCode}
         onBack={() => navigate('mypage')}
         onSelectPlan={(plan) => { setUserPlan(plan); navigate('mypage') }}
       />

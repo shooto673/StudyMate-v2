@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Flame, BookOpen, Calculator, Trophy, Star, Lock, User, Check } from 'lucide-react'
+import { Flame, BookOpen, Calculator, Trophy, Star, Lock, User, Check, Users } from 'lucide-react'
 import AdBanner from '../components/AdBanner'
 import { getSubUnitPercent } from '../lib/progressStore'
+import { useTheme } from '../lib/theme'
 
 const SUBJECT_THEME = {
   english: { color: '#4DABF7', light: '#E7F5FF', icon: BookOpen, label: '英語' },
@@ -200,6 +201,7 @@ function RoadPath({ units, theme }) {
 }
 
 export default function StageMapPage({ grade, subject, units, mascotId, onSelectUnit, onSubjectChange, onNavigate, profile, userPlan }) {
+  const { theme: colorTheme } = useTheme()
   const theme = SUBJECT_THEME[subject]
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-cheering.png' : '/mascots/taylor/mascot-cheering.png'
   const gradeLabel = { j1: '中1', j2: '中2', j3: '中3' }[grade]
@@ -223,12 +225,12 @@ export default function StageMapPage({ grade, subject, units, mascotId, onSelect
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#FFFDF7' }}>
+    <div style={{ minHeight: '100dvh', background: colorTheme.bg }}>
       {/* Header */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 50,
-        background: 'rgba(255,253,247,0.92)', backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid #f1f1f1', padding: '12px 20px',
+        background: colorTheme.bg + 'EB', backdropFilter: 'blur(16px)',
+        borderBottom: `1px solid ${colorTheme.cardBorder}`, padding: '12px 20px',
       }}>
         <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -241,8 +243,8 @@ export default function StageMapPage({ grade, subject, units, mascotId, onSelect
               <span className="font-bold" style={{ color: '#fff', fontSize: 14 }}>{gradeLabel}</span>
             </div>
             <div>
-              <div className="font-bold" style={{ fontSize: 15, color: '#1a1a2e' }}>{profile?.displayName || '冒険者'}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#6b7280' }}>
+              <div className="font-bold" style={{ fontSize: 15, color: colorTheme.text }}>{profile?.displayName || '冒険者'}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: colorTheme.textSecondary }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                   <Flame size={13} style={{ color: '#FF6B6B' }} /> 3日連続
                 </span>
@@ -250,27 +252,37 @@ export default function StageMapPage({ grade, subject, units, mascotId, onSelect
               </div>
             </div>
           </div>
-          <button onClick={() => onNavigate('mypage')}
-            style={{
-              width: 40, height: 40, borderRadius: 12, background: '#f3f4f6',
-              border: 'none', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-            <User size={18} style={{ color: '#6b7280' }} />
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => onNavigate('friends')}
+              style={{
+                width: 40, height: 40, borderRadius: 12, background: colorTheme.tabBg,
+                border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <Users size={18} style={{ color: colorTheme.textSecondary }} />
+            </button>
+            <button onClick={() => onNavigate('mypage')}
+              style={{
+                width: 40, height: 40, borderRadius: 12, background: colorTheme.tabBg,
+                border: 'none', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+              <User size={18} style={{ color: colorTheme.textSecondary }} />
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Subject Tabs */}
       <div style={{ maxWidth: 600, margin: '16px auto 0', padding: '0 20px' }}>
-        <div style={{ display: 'flex', borderRadius: 16, background: '#f3f4f6', padding: 4 }}>
+        <div style={{ display: 'flex', borderRadius: 16, background: colorTheme.tabBg, padding: 4 }}>
           {Object.entries(SUBJECT_THEME).map(([key, t]) => (
             <button key={key} onClick={() => onSubjectChange(key)}
               style={{
                 flex: 1, padding: '13px 0', borderRadius: 14, fontSize: 15, fontWeight: 700,
                 border: 'none', cursor: 'pointer', transition: 'all 0.2s',
-                background: subject === key ? '#fff' : 'transparent',
-                color: subject === key ? t.color : '#9ca3af',
+                background: subject === key ? colorTheme.card : 'transparent',
+                color: subject === key ? t.color : colorTheme.textMuted,
                 boxShadow: subject === key ? '0 2px 10px rgba(0,0,0,0.06)' : 'none',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}>
@@ -321,7 +333,7 @@ export default function StageMapPage({ grade, subject, units, mascotId, onSelect
               >
                 <Trophy size={38} style={{ color: '#fff' }} />
               </motion.div>
-              <span className="font-bold" style={{ fontSize: 14, color: '#9ca3af', background: '#fff', borderRadius: 10, padding: '4px 14px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+              <span className="font-bold" style={{ fontSize: 14, color: colorTheme.textMuted, background: colorTheme.card, borderRadius: 10, padding: '4px 14px', boxShadow: `0 2px 8px ${colorTheme.shadow}` }}>
                 全クリア！
               </span>
             </motion.div>

@@ -1,8 +1,10 @@
 import { motion } from 'framer-motion'
 import { ArrowLeft, ChevronRight, Lock } from 'lucide-react'
 import { getSubUnitPercent, isSubUnitMastered } from '../lib/progressStore'
+import { useTheme } from '../lib/theme'
 
 export default function SectionPage({ unit, onSelectSubUnit, onBack, mascotId }) {
+  const { theme } = useTheme()
   const mascotSrc = mascotId === 'mona' ? '/mascots/mona/mascot-thinking.png' : '/mascots/taylor/mascot-thinking.png'
   const subUnits = unit?.subUnits || []
 
@@ -13,15 +15,15 @@ export default function SectionPage({ unit, onSelectSubUnit, onBack, mascotId })
   }
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#FFFDF7' }}>
+    <div style={{ minHeight: '100dvh', background: theme.bg }}>
       {/* Header */}
-      <div style={{ padding: '16px 20px', borderBottom: '1px solid #f1f1f1', background: '#fff' }}>
+      <div style={{ padding: '16px 20px', borderBottom: `1px solid ${theme.cardBorder}`, background: theme.card }}>
         <div style={{ maxWidth: 600, margin: '0 auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={onBack}
-            style={{ width: 36, height: 36, borderRadius: 10, background: '#f3f4f6', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <ArrowLeft size={18} style={{ color: '#6b7280' }} />
+            style={{ width: 36, height: 36, borderRadius: 10, background: theme.tabBg, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ArrowLeft size={18} style={{ color: theme.textSecondary }} />
           </button>
-          <h1 className="font-bold" style={{ fontSize: 18, color: '#1a1a2e' }}>{unit?.title}</h1>
+          <h1 className="font-bold" style={{ fontSize: 18, color: theme.text }}>{unit?.title}</h1>
         </div>
       </div>
 
@@ -31,7 +33,7 @@ export default function SectionPage({ unit, onSelectSubUnit, onBack, mascotId })
           animate={{ y: [0, -6, 0] }}
           transition={{ duration: 3, repeat: Infinity }}
           style={{ width: 80, height: 80, objectFit: 'contain', filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.1))' }} />
-        <div style={{ display: 'inline-block', borderRadius: 14, background: '#fff', padding: '6px 18px', fontSize: 13, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginTop: -4 }}>
+        <div style={{ display: 'inline-block', borderRadius: 14, background: theme.card, padding: '6px 18px', fontSize: 13, fontWeight: 700, color: theme.text, boxShadow: `0 2px 8px ${theme.shadow}`, marginTop: -4 }}>
           どれから始める？
         </div>
       </div>
@@ -52,8 +54,8 @@ export default function SectionPage({ unit, onSelectSubUnit, onBack, mascotId })
                 onClick={() => !isLocked && onSelectSubUnit(sub)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 14, padding: '16px 18px',
-                  borderRadius: 16, background: '#fff', border: '1px solid #f1f1f1',
-                  boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+                  borderRadius: 16, background: theme.card, border: `1px solid ${theme.cardBorder}`,
+                  boxShadow: `0 2px 10px ${theme.shadow}`,
                   cursor: isLocked ? 'default' : 'pointer', textAlign: 'left',
                   opacity: isLocked ? 0.5 : 1, width: '100%',
                 }}
@@ -68,9 +70,9 @@ export default function SectionPage({ unit, onSelectSubUnit, onBack, mascotId })
                     : <span className="font-bold" style={{ color: '#fff', fontSize: 16 }}>{sub.number}</span>}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div className="font-bold" style={{ fontSize: 15, color: '#1a1a2e', marginBottom: 6 }}>{sub.title}</div>
+                  <div className="font-bold" style={{ fontSize: 15, color: theme.text, marginBottom: 6 }}>{sub.title}</div>
                   {/* Progress bar */}
-                  <div style={{ height: 6, borderRadius: 999, background: '#f3f4f6', overflow: 'hidden' }}>
+                  <div style={{ height: 6, borderRadius: 999, background: theme.tabBg, overflow: 'hidden' }}>
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${progress}%` }}

@@ -23,7 +23,7 @@ export default function LoginPage({ onNavigate, onEmailLogin, onEmailSignUp, onG
     if (password !== passwordConfirm) return setError('パスワードが一致しないよ')
     setIsSubmitting(true)
     try {
-      await onEmailSignUp(email, password, displayName)
+      await onEmailSignUp(email, password, displayName, referralCode.trim())
       // Navigation is handled by App.jsx after auth state changes
     } catch (e) {
       const msg = e.message || '登録に失敗しました'

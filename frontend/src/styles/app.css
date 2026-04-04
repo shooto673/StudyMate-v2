@@ -39,6 +39,40 @@
   --streak-orange: #FB923C;
 }
 
+/* ── Dark Mode ── */
+body.dark-mode {
+  --bg: #0f0f1a;
+  --bg-sub: #161625;
+  --card: #1a1a2e;
+  --card-border: #2a2a3e;
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+  --primary-light: #2a2a4e;
+  --primary-glow: rgba(124, 115, 255, 0.3);
+
+  --accent-light: #3a2020;
+
+  --english-light: #1a2a3e;
+  --math-light: #2e2218;
+
+  --success-light: #1a2e1a;
+  --error-light: #2e1a1a;
+  --warning-light: #2e2a18;
+
+  --text: #e5e5ef;
+  --text-sub: #9ca3af;
+  --text-muted: #6b7280;
+}
+
+body.dark-mode .glass {
+  background: rgba(26, 26, 46, 0.7);
+  border: 1px solid rgba(42, 42, 62, 0.5);
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb { background: #3a3a4e; }
+body.dark-mode ::-webkit-scrollbar-thumb:hover { background: #4a4a5e; }
+
 /* ── Base ── */
 * {
   margin: 0;
