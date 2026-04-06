@@ -366,36 +366,47 @@ export default function QuizPage({ questions, subUnit, mascotId, loading, onComp
                     </div>
                   </div>
 
-                  {/* Explanation */}
-                  <button onClick={() => setShowExplanation(!showExplanation)}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, background: '#fff',
-                      border: '1px solid #e5e7eb', borderRadius: 14, padding: '11px 16px',
-                      cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#6C63FF',
-                      marginBottom: 12, width: '100%', transition: 'all 0.2s',
+                  {/* Auto-shown brief explanation */}
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    style={{ overflow: 'hidden', marginBottom: 12 }}
+                  >
+                    <div style={{
+                      background: '#fff', borderRadius: 16, padding: '16px 18px',
+                      border: '1px solid #E9ECEF',
                     }}>
-                    <Lightbulb size={15} />
-                    {showExplanation ? '解説を閉じる' : '解説を見る'}
-                  </button>
-
-                  <AnimatePresence>
-                    {showExplanation && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        style={{ overflow: 'hidden' }}
-                      >
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                         <div style={{
-                          background: '#fff', borderRadius: 16, padding: '18px 20px',
-                          border: '1px solid #E9ECEF', fontSize: 14, color: '#495057',
-                          lineHeight: 1.9, marginBottom: 12,
+                          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
+                          background: '#FFF8E1', display: 'flex', alignItems: 'center', justifyContent: 'center',
                         }}>
-                          💡 {q.explanation}
+                          <Lightbulb size={15} style={{ color: '#FFB300' }} />
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
+                        <div style={{ fontSize: 14, color: '#495057', lineHeight: 1.8 }}>
+                          <div className="font-bold" style={{ fontSize: 13, color: '#1a1a2e', marginBottom: 4 }}>
+                            正解: {q.choices[q.answer]}
+                          </div>
+                          {!showExplanation ? (
+                            <>
+                              <span>{q.explanation?.split('。')[0]}。</span>
+                              {q.explanation?.split('。').length > 2 && (
+                                <button onClick={() => setShowExplanation(true)}
+                                  style={{
+                                    background: 'none', border: 'none', cursor: 'pointer',
+                                    color: '#6C63FF', fontWeight: 700, fontSize: 13, padding: '2px 0', marginLeft: 4,
+                                  }}>
+                                  詳しく見る →
+                                </button>
+                              )}
+                            </>
+                          ) : (
+                            <span>{q.explanation}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
 
                   {/* Next Button */}
                   <motion.button
