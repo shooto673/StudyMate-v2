@@ -427,22 +427,7 @@ export default function QuizPage({ questions, subUnit, mascotId, loading, onComp
                           <div className="font-bold" style={{ fontSize: 13, color: '#1a1a2e', marginBottom: 4 }}>
                             正解: {q.choices[q.answer]}
                           </div>
-                          {!showExplanation ? (
-                            <>
-                              <span>{q.explanation?.split('。')[0]}。</span>
-                              {q.explanation?.split('。').length > 2 && (
-                                <button onClick={() => setShowExplanation(true)}
-                                  style={{
-                                    background: 'none', border: 'none', cursor: 'pointer',
-                                    color: '#6C63FF', fontWeight: 700, fontSize: 13, padding: '2px 0', marginLeft: 4,
-                                  }}>
-                                  詳しく見る →
-                                </button>
-                              )}
-                            </>
-                          ) : (
-                            <span>{q.explanation}</span>
-                          )}
+                          <span>{q.explanation}</span>
                         </div>
                       </div>
                     </div>

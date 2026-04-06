@@ -22,7 +22,7 @@ function validateGraphData(question, graphData) {
 
   // For shapes, must have valid shape type
   if (graphData.type === 'shape') {
-    const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'circle']
+    const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle']
     if (!SUPPORTED_SHAPES.includes(graphData.shape)) return null
   }
 

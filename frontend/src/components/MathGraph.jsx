@@ -199,18 +199,129 @@ export default function MathGraph({ graphData }) {
             </g>
           )
         })()}
-        {graphData.shape === 'rectangle' && (
-          <g>
-            <rect x={pad + 20} y={pad + 20} width={W - pad * 2 - 40} height={H - pad * 2 - 40}
-              fill="none" stroke="#6C63FF" strokeWidth={2.5} />
-            {graphData.width && (
-              <text x={cx} y={H - pad + 6} fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="middle">{graphData.width}</text>
-            )}
-            {graphData.height && (
-              <text x={W - pad + 6} y={cy} fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="start">{graphData.height}</text>
-            )}
-          </g>
-        )}
+        {graphData.shape === 'rectangle' && (() => {
+          const rx = pad + 20, ry = pad + 20
+          const rw = W - pad * 2 - 40, rh = H - pad * 2 - 40
+          const corners = [
+            { x: rx, y: ry },           // top-left (A)
+            { x: rx + rw, y: ry },      // top-right (B)
+            { x: rx + rw, y: ry + rh }, // bottom-right (C)
+            { x: rx, y: ry + rh },      // bottom-left (D)
+          ]
+          const labelPos = [
+            { x: rx - 10, y: ry - 6 },
+            { x: rx + rw + 10, y: ry - 6 },
+            { x: rx + rw + 10, y: ry + rh + 16 },
+            { x: rx - 10, y: ry + rh + 16 },
+          ]
+          return (
+            <g>
+              <rect x={rx} y={ry} width={rw} height={rh}
+                fill="none" stroke="#6C63FF" strokeWidth={2.5} />
+              {graphData.labels?.map((lbl, i) => (
+                <text key={i} x={labelPos[i]?.x} y={labelPos[i]?.y}
+                  fontSize={12} fill="#1a1a2e" fontWeight={700} textAnchor="middle">{lbl}</text>
+              ))}
+              {graphData.width && (
+                <text x={cx} y={ry + rh + 16} fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="middle">{graphData.width}</text>
+              )}
+              {graphData.height && (
+                <text x={rx + rw + 14} y={cy} fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="start">{graphData.height}</text>
+              )}
+            </g>
+          )
+        })()}
+        {graphData.shape === 'rhombus' && (() => {
+          // Diamond shape (rotated square)
+          const dx = (W - pad * 2) / 2 - 10
+          const dy = (H - pad * 2) / 2 - 10
+          const vertices = [
+            { x: cx, y: cy - dy },  // top
+            { x: cx + dx, y: cy },  // right
+            { x: cx, y: cy + dy },  // bottom
+            { x: cx - dx, y: cy },  // left
+          ]
+          const labelPos = [
+            { x: cx, y: cy - dy - 8 },
+            { x: cx + dx + 12, y: cy + 4 },
+            { x: cx, y: cy + dy + 16 },
+            { x: cx - dx - 12, y: cy + 4 },
+          ]
+          return (
+            <g>
+              <polygon
+                points={vertices.map(v => `${v.x},${v.y}`).join(' ')}
+                fill="none" stroke="#6C63FF" strokeWidth={2.5}
+              />
+              {graphData.labels?.map((lbl, i) => (
+                <text key={i} x={labelPos[i]?.x} y={labelPos[i]?.y}
+                  fontSize={12} fill="#1a1a2e" fontWeight={700} textAnchor="middle">{lbl}</text>
+              ))}
+              {/* Diagonals */}
+              {graphData.diagonals && (
+                <>
+                  <line x1={vertices[0].x} y1={vertices[0].y} x2={vertices[2].x} y2={vertices[2].y}
+                    stroke="#FF922B" strokeWidth={1.2} strokeDasharray="4,3" />
+                  <line x1={vertices[1].x} y1={vertices[1].y} x2={vertices[3].x} y2={vertices[3].y}
+                    stroke="#FF922B" strokeWidth={1.2} strokeDasharray="4,3" />
+                  {graphData.diagonals[0] && (
+                    <text x={cx + 8} y={cy - dy / 2} fontSize={10} fill="#FF922B" fontWeight={600}>{graphData.diagonals[0]}</text>
+                  )}
+                  {graphData.diagonals[1] && (
+                    <text x={cx + dx / 2 + 4} y={cy - 8} fontSize={10} fill="#FF922B" fontWeight={600}>{graphData.diagonals[1]}</text>
+                  )}
+                </>
+              )}
+              {graphData.sides?.map((side, i) => {
+                const midX = (vertices[i].x + vertices[(i + 1) % 4].x) / 2
+                const midY = (vertices[i].y + vertices[(i + 1) % 4].y) / 2
+                const offX = i === 0 ? 12 : i === 2 ? -12 : 0
+                const offY = i === 1 ? 12 : i === 3 ? -12 : 0
+                return side ? (
+                  <text key={`s-${i}`} x={midX + offX} y={midY + offY}
+                    fontSize={10} fill="#FF922B" fontWeight={600} textAnchor="middle">{side}</text>
+                ) : null
+              })}
+            </g>
+          )
+        })()}
+        {graphData.shape === 'parallelogram' && (() => {
+          const skew = 30
+          const rx = pad + 20 + skew, ry = pad + 20
+          const rw = W - pad * 2 - 40 - skew, rh = H - pad * 2 - 40
+          const vertices = [
+            { x: rx, y: ry },               // top-left (A)
+            { x: rx + rw, y: ry },           // top-right (B)
+            { x: rx + rw - skew, y: ry + rh }, // bottom-right (C)
+            { x: rx - skew, y: ry + rh },    // bottom-left (D)
+          ]
+          const labelPos = [
+            { x: rx - 4, y: ry - 8 },
+            { x: rx + rw + 4, y: ry - 8 },
+            { x: rx + rw - skew + 4, y: ry + rh + 16 },
+            { x: rx - skew - 4, y: ry + rh + 16 },
+          ]
+          return (
+            <g>
+              <polygon
+                points={vertices.map(v => `${v.x},${v.y}`).join(' ')}
+                fill="none" stroke="#6C63FF" strokeWidth={2.5}
+              />
+              {graphData.labels?.map((lbl, i) => (
+                <text key={i} x={labelPos[i]?.x} y={labelPos[i]?.y}
+                  fontSize={12} fill="#1a1a2e" fontWeight={700} textAnchor="middle">{lbl}</text>
+              ))}
+              {graphData.width && (
+                <text x={(vertices[2].x + vertices[3].x) / 2} y={ry + rh + 16}
+                  fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="middle">{graphData.width}</text>
+              )}
+              {graphData.height && (
+                <text x={rx + rw + 8} y={cy}
+                  fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="start">{graphData.height}</text>
+              )}
+            </g>
+          )
+        })()}
         {graphData.shape === 'circle' && (
           <g>
             <circle cx={cx} cy={cy} r={70} fill="none" stroke="#6C63FF" strokeWidth={2.5} />

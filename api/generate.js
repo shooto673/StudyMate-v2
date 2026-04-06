@@ -29,7 +29,7 @@ export default async function handler(req, res) {
 - 対応している graphData の型（これ以外は使用禁止）:
   - coordinate: 座標平面上の一次関数グラフ（lines配列とpoints配列）
   - numberline: 数直線（min, max, points配列）
-  - shape: 基本図形（triangle / rectangle / circle のみ）
+  - shape: 基本図形（triangle / rectangle / rhombus / parallelogram / circle）
 
 - graphDataは問題文と完全に一致すること:
   - 問題文にラベル（「あ」「い」「A」「B」等）が出る場合、graphDataのlabelsにも必ず含めること
@@ -39,8 +39,11 @@ export default async function handler(req, res) {
   - 一次関数グラフ: {"type":"coordinate","range":5,"lines":[{"slope":2,"intercept":1,"label":"y=2x+1"}],"points":[{"x":1,"y":3,"label":"A"}]}
   - 数直線: {"type":"numberline","min":-5,"max":5,"points":[{"value":3,"label":"P"}]}
   - 三角形: {"type":"shape","shape":"triangle","labels":["A","B","C"],"sides":["5cm","3cm","4cm"],"angles":["90°",null,null]}
-  - 長方形: {"type":"shape","shape":"rectangle","width":"6cm","height":"4cm"}
-  - 円: {"type":"shape","shape":"circle","radius":"5cm"}` : ''
+  - 長方形/平行四辺形: {"type":"shape","shape":"rectangle","labels":["A","B","C","D"],"width":"8cm","height":"5cm"}
+  - ひし形: {"type":"shape","shape":"rhombus","labels":["A","B","C","D"],"diagonals":["8cm","6cm"]}
+  - 平行四辺形: {"type":"shape","shape":"parallelogram","labels":["A","B","C","D"],"width":"8cm","height":"5cm"}
+  - 円: {"type":"shape","shape":"circle","radius":"5cm"}
+- 【重要】長方形・平行四辺形・ひし形の問題では必ず labels:["A","B","C","D"] を付けて頂点名を表示すること` : ''
 
   const isSummaryTest = subUnitTitle === 'まとめテスト'
   const summaryInstruction = isSummaryTest ? `
@@ -63,6 +66,7 @@ ${summaryInstruction}
 - correctIndexは0-3でランダムに分散させること（毎回同じ位置にしない）
 - 問題は基本〜標準レベル
 - 問題文は簡潔に（中学生が理解できる日本語）
+- 【重要】対象学年の範囲を厳守すること。上の学年で習う内容は絶対に使わない。例: 中学1年・2年の問題に√（平方根）や三平方の定理を出さない。中学1年の問題に連立方程式や一次関数を出さない。
 - ${subject === 'english' ? '英語の問題は日本語で出題し、選択肢に英語を含める。文法や語彙を問う形式で。英語の問題は出題形式を多様にすること：穴埋め問題、並べ替え問題、和訳問題、英訳問題、文法選択問題などを混ぜる。短縮形（I\'m / don\'t）と非短縮形（I am / do not）がどちらも文法的に正しい場合は、解説でその旨を必ず言及すること。' : '数学の問題は計算問題や文章題を混ぜて出す。選択肢は数値や式で。数学の問題も出題形式を多様にすること：計算問題、文章題、図形問題、応用問題を混ぜる。'}
 - 解説は2-3文で、以下の構成にすること：①正解の理由 ②よくある間違いの指摘 ③関連するポイント（英語なら許容表現、数学なら公式など）${hintInstruction}${mathGraphInstruction}
 
