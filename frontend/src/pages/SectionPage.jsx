@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { ArrowLeft, ChevronRight, Lock } from 'lucide-react'
+import { ArrowLeft, ChevronRight, Lock, Sparkles } from 'lucide-react'
 import { getSubUnitPercent, isSubUnitMastered } from '../lib/progressStore'
 import { useTheme } from '../lib/theme'
 
@@ -40,6 +40,51 @@ export default function SectionPage({ unit, onSelectSubUnit, onBack, mascotId })
 
       {/* Sub-units list */}
       <div style={{ maxWidth: 600, margin: '16px auto', padding: '0 20px 40px' }}>
+        {/* Summary Test Button */}
+        {(() => {
+          const hasAnyAttempt = subUnits.some(sub => getSubUnitPercent(sub.slug) > 0)
+          return (
+            <motion.button
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              whileHover={hasAnyAttempt ? { scale: 1.02 } : {}}
+              whileTap={hasAnyAttempt ? { scale: 0.97 } : {}}
+              onClick={() => hasAnyAttempt && onSelectSubUnit({
+                slug: `summary-${unit?.slug || 'unit'}`,
+                title: 'まとめテスト',
+                unitTitle: unit?.title,
+                number: '★',
+              })}
+              style={{
+                width: '100%', padding: '18px 20px', borderRadius: 18, border: 'none',
+                cursor: hasAnyAttempt ? 'pointer' : 'default',
+                background: hasAnyAttempt
+                  ? 'linear-gradient(135deg, #6C63FF, #38BDF8)'
+                  : '#e5e7eb',
+                color: '#fff', marginBottom: 16,
+                boxShadow: hasAnyAttempt ? '0 6px 24px rgba(108,99,255,0.3)' : 'none',
+                opacity: hasAnyAttempt ? 1 : 0.5,
+                display: 'flex', alignItems: 'center', gap: 14,
+              }}
+            >
+              <div style={{
+                width: 44, height: 44, borderRadius: 14, flexShrink: 0,
+                background: 'rgba(255,255,255,0.2)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <Sparkles size={22} style={{ color: '#fff' }} />
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div className="font-black" style={{ fontSize: 16, marginBottom: 2 }}>まとめテスト</div>
+                <div style={{ fontSize: 12, opacity: 0.85 }}>
+                  {hasAnyAttempt ? 'この単元の全分野から10問出題！' : 'サブ単元を1つ以上学習すると解放'}
+                </div>
+              </div>
+              {hasAnyAttempt && <ChevronRight size={20} style={{ color: '#fff', marginLeft: 'auto', flexShrink: 0 }} />}
+            </motion.button>
+          )
+        })()}
+
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {subUnits.map((sub, idx) => {
             const progress = getProgress(idx)

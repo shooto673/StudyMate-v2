@@ -126,36 +126,79 @@ export default function MathGraph({ graphData }) {
     // Render basic geometric shapes
     return (
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', margin: '0 auto' }}>
-        {graphData.shape === 'triangle' && (
-          <g>
-            <polygon
-              points={`${cx},${pad + 10} ${pad + 20},${H - pad} ${W - pad - 20},${H - pad}`}
-              fill="none" stroke="#6C63FF" strokeWidth={2.5}
-            />
-            {graphData.labels?.map((lbl, i) => {
-              const positions = [
-                { x: cx, y: pad }, // top
-                { x: pad, y: H - pad + 16 }, // bottom-left
-                { x: W - pad, y: H - pad + 16 }, // bottom-right
-              ]
+        {graphData.shape === 'triangle' && (() => {
+          const vertices = [
+            { x: cx, y: pad + 10 },        // top (A)
+            { x: pad + 20, y: H - pad },    // bottom-left (B)
+            { x: W - pad - 20, y: H - pad }, // bottom-right (C)
+          ]
+          const labelOffsets = [
+            { x: cx, y: pad - 2 },
+            { x: pad + 2, y: H - pad + 16 },
+            { x: W - pad - 2, y: H - pad + 16 },
+          ]
+          const sideOffsets = [
+            { x: cx - 50, y: cy - 20 },
+            { x: cx, y: H - pad + 14 },
+            { x: cx + 50, y: cy - 20 },
+          ]
+          // Generate angle arc paths
+          const angleArcs = (graphData.angles || []).map((angle, i) => {
+            if (!angle) return null
+            const v = vertices[i]
+            const prev = vertices[(i + 2) % 3]
+            const next = vertices[(i + 1) % 3]
+            // Vectors from vertex to adjacent vertices
+            const dx1 = prev.x - v.x, dy1 = prev.y - v.y
+            const dx2 = next.x - v.x, dy2 = next.y - v.y
+            const len1 = Math.sqrt(dx1 * dx1 + dy1 * dy1)
+            const len2 = Math.sqrt(dx2 * dx2 + dy2 * dy2)
+            const r = 18 // arc radius
+            const p1x = v.x + (dx1 / len1) * r, p1y = v.y + (dy1 / len1) * r
+            const p2x = v.x + (dx2 / len2) * r, p2y = v.y + (dy2 / len2) * r
+            // For right angle (90°), draw a small square
+            const isRight = angle === '90°' || angle === '90'
+            if (isRight) {
+              const sq = 12
+              const ux1 = dx1 / len1, uy1 = dy1 / len1
+              const ux2 = dx2 / len2, uy2 = dy2 / len2
               return (
-                <text key={i} x={positions[i]?.x} y={positions[i]?.y}
+                <g key={`angle-${i}`}>
+                  <path
+                    d={`M ${v.x + ux1 * sq},${v.y + uy1 * sq} L ${v.x + ux1 * sq + ux2 * sq},${v.y + uy1 * sq + uy2 * sq} L ${v.x + ux2 * sq},${v.y + uy2 * sq}`}
+                    fill="none" stroke="#FF922B" strokeWidth={1.5}
+                  />
+                </g>
+              )
+            }
+            return (
+              <g key={`angle-${i}`}>
+                <path d={`M ${p1x},${p1y} A ${r} ${r} 0 0 1 ${p2x},${p2y}`}
+                  fill="none" stroke="#FF922B" strokeWidth={1.5} />
+                <text x={v.x + ((dx1 / len1 + dx2 / len2) * 0.5) * 24}
+                  y={v.y + ((dy1 / len1 + dy2 / len2) * 0.5) * 24}
+                  fontSize={9} fill="#FF922B" fontWeight={600} textAnchor="middle">{angle}</text>
+              </g>
+            )
+          })
+          return (
+            <g>
+              <polygon
+                points={vertices.map(v => `${v.x},${v.y}`).join(' ')}
+                fill="none" stroke="#6C63FF" strokeWidth={2.5}
+              />
+              {graphData.labels?.map((lbl, i) => (
+                <text key={i} x={labelOffsets[i]?.x} y={labelOffsets[i]?.y}
                   fontSize={12} fill="#1a1a2e" fontWeight={700} textAnchor="middle">{lbl}</text>
-              )
-            })}
-            {graphData.sides?.map((side, i) => {
-              const midPositions = [
-                { x: cx - 50, y: cy - 20 }, // left side
-                { x: cx, y: H - pad + 14 }, // bottom
-                { x: cx + 50, y: cy - 20 }, // right side
-              ]
-              return (
-                <text key={`s-${i}`} x={midPositions[i]?.x} y={midPositions[i]?.y}
+              ))}
+              {graphData.sides?.map((side, i) => (
+                <text key={`s-${i}`} x={sideOffsets[i]?.x} y={sideOffsets[i]?.y}
                   fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="middle">{side}</text>
-              )
-            })}
-          </g>
-        )}
+              ))}
+              {angleArcs}
+            </g>
+          )
+        })()}
         {graphData.shape === 'rectangle' && (
           <g>
             <rect x={pad + 20} y={pad + 20} width={W - pad * 2 - 40} height={H - pad * 2 - 40}

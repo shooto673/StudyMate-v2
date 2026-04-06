@@ -20,34 +20,51 @@ export default async function handler(req, res) {
   const subjectLabel = subject === 'english' ? '英語' : '数学'
 
   const mathGraphInstruction = subject === 'math' ? `
-- グラフや図形が必要な問題には graphData フィールドを追加してください。
-- 【重要】graphDataは問題文の内容と完全に一致する図のみ追加すること。以下のルールを厳守:
-  - 問題文にラベル（「あ」「い」「A」「B」等）が出る場合、graphDataにも必ずそのラベルを含めること
-  - 図が問題を解くのに不可欠な情報を持つこと（寸法、ラベル、座標など）
-  - 描画システムが対応していない複雑な図形（展開図、立体図、角度の図など）にはgraphDataを付けないこと（nullにする）
-  - 対応している図形タイプ: 座標平面上の一次関数グラフ、数直線、三角形（頂点ラベル・辺の長さ付き）、長方形（幅・高さ付き）、円（半径付き）
+- 【最重要ルール】graphDataフィールドについて以下を厳守すること:
+  1. 図形・グラフ・数直線に関する問題には **必ず** graphDataを付けること。nullにしてはいけない。
+  2. graphDataをnullにしてよいのは **純粋な計算問題（方程式を解く、四則演算等）のみ**。
+  3. ${count}問中、少なくとも半分以上の問題にgraphDataを付けること。
+  4. 描画システムが対応していない複雑な図形（展開図、立体の見取り図、角度の弧、回転体など）が必要な問題は **出題しないこと**。対応している型で出題できる問題のみ作ること。
+
+- 対応している graphData の型（これ以外は使用禁止）:
+  - coordinate: 座標平面上の一次関数グラフ（lines配列とpoints配列）
+  - numberline: 数直線（min, max, points配列）
+  - shape: 基本図形（triangle / rectangle / circle のみ）
+
+- graphDataは問題文と完全に一致すること:
+  - 問題文にラベル（「あ」「い」「A」「B」等）が出る場合、graphDataのlabelsにも必ず含めること
+  - 図が問題を解くのに不可欠な情報（寸法、ラベル、座標）を持つこと
+
 - graphDataの例:
   - 一次関数グラフ: {"type":"coordinate","range":5,"lines":[{"slope":2,"intercept":1,"label":"y=2x+1"}],"points":[{"x":1,"y":3,"label":"A"}]}
   - 数直線: {"type":"numberline","min":-5,"max":5,"points":[{"value":3,"label":"P"}]}
-  - 三角形: {"type":"shape","shape":"triangle","labels":["A","B","C"],"sides":["5cm","3cm","4cm"]}
+  - 三角形: {"type":"shape","shape":"triangle","labels":["A","B","C"],"sides":["5cm","3cm","4cm"],"angles":["90°",null,null]}
   - 長方形: {"type":"shape","shape":"rectangle","width":"6cm","height":"4cm"}
-  - 円: {"type":"shape","shape":"circle","radius":"5cm"}
-- 描画できない図形が必要な問題では、graphDataをnullにし、問題文だけで解けるように問題を作ること` : ''
+  - 円: {"type":"shape","shape":"circle","radius":"5cm"}` : ''
+
+  const isSummaryTest = subUnitTitle === 'まとめテスト'
+  const summaryInstruction = isSummaryTest ? `
+- これは「まとめテスト」です。この単元「${unitTitle}」の全範囲から均等に出題してください。
+- 各サブ単元から1-2問ずつ出し、基本問題だけでなく応用・総合問題も含めること。
+- 単元全体の理解度を測れるよう、難易度は基本〜やや応用まで幅広く。` : ''
+
+  const hintInstruction = subject === 'english' ? `
+- 各問題に "hint" フィールド（日本語1文）を必ず追加すること。ヒントは「この単語は『〜する』という意味だよ」「主語が三人称単数のときの動詞に注目！」のように、答えを直接言わず考え方のヒントを与える内容にすること。` : ''
 
   const prompt = `あなたは${gradeLabel}の${subjectLabel}の先生です。
 以下の単元について、4択クイズを${count}問作成してください。
 
-【単元】${unitTitle} > ${subUnitTitle}
+【単元】${unitTitle}${isSummaryTest ? '（まとめテスト）' : ` > ${subUnitTitle}`}
 【対象】${gradeLabel}
 【科目】${subjectLabel}
-
+${summaryInstruction}
 ルール:
 - 各問題は question（問題文）、choices（4つの選択肢配列）、correctIndex（正解のインデックス0-3）、explanation（解説）を含む
 - correctIndexは0-3でランダムに分散させること（毎回同じ位置にしない）
 - 問題は基本〜標準レベル
 - 問題文は簡潔に（中学生が理解できる日本語）
-- ${subject === 'english' ? '英語の問題は日本語で出題し、選択肢に英語を含める。文法や語彙を問う形式で。英語の問題は出題形式を多様にすること：穴埋め問題、並べ替え問題、和訳問題、英訳問題、文法選択問題などを混ぜる。短縮形（I\'m / don\'t）と非短縮形（I am / do not）がどちらも文法的に正しい場合は、解説でその旨を必ず言及すること。' : '数学の問題は計算問題や文章題を混ぜて出す。選択肢は数値や式で。図が描画できない問題は問題文だけで解ける形にすること。数学の問題も出題形式を多様にすること：計算問題、文章題、図形問題、応用問題を混ぜる。'}
-- 解説は2-3文で、以下の構成にすること：①正解の理由 ②よくある間違いの指摘 ③関連するポイント（英語なら許容表現、数学なら公式など）${mathGraphInstruction}
+- ${subject === 'english' ? '英語の問題は日本語で出題し、選択肢に英語を含める。文法や語彙を問う形式で。英語の問題は出題形式を多様にすること：穴埋め問題、並べ替え問題、和訳問題、英訳問題、文法選択問題などを混ぜる。短縮形（I\'m / don\'t）と非短縮形（I am / do not）がどちらも文法的に正しい場合は、解説でその旨を必ず言及すること。' : '数学の問題は計算問題や文章題を混ぜて出す。選択肢は数値や式で。数学の問題も出題形式を多様にすること：計算問題、文章題、図形問題、応用問題を混ぜる。'}
+- 解説は2-3文で、以下の構成にすること：①正解の理由 ②よくある間違いの指摘 ③関連するポイント（英語なら許容表現、数学なら公式など）${hintInstruction}${mathGraphInstruction}
 
 以下のJSON形式で返してください（JSON以外は一切出力しないでください）:
 [
@@ -55,7 +72,7 @@ export default async function handler(req, res) {
     "question": "問題文",
     "choices": ["選択肢A", "選択肢B", "選択肢C", "選択肢D"],
     "correctIndex": 0,
-    "explanation": "解説文"${subject === 'math' ? ',\n    "graphData": null' : ''}
+    "explanation": "解説文"${subject === 'english' ? ',\n    "hint": "ヒント文"' : ''}${subject === 'math' ? ',\n    "graphData": null' : ''}
   }
 ]`
 

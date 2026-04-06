@@ -150,12 +150,13 @@ export default function App() {
     setQuizLoading(true)
     navigate('quiz')
 
+    const isSummary = subUnit.slug?.startsWith('summary-')
     const questions = await fetchQuizQuestions({
       unitTitle: selectedUnit?.title || subUnit.unitTitle || '',
-      subUnitTitle: subUnit.title,
+      subUnitTitle: isSummary ? 'まとめテスト' : subUnit.title,
       subject,
       grade,
-      count: 5,
+      count: isSummary ? 10 : 5,
     })
 
     if (questions) {

@@ -27,11 +27,24 @@ function validateGraphData(question, graphData) {
   }
 
   // Check if question mentions labels that graph should contain
-  // If question references specific labels (あ, い, A, B, etc.) but graph doesn't have them, discard
-  const labelPattern = /[「『]([あ-おア-オA-Z])[」』]/g
   const mentionedLabels = []
   let match
-  while ((match = labelPattern.exec(question)) !== null) {
+
+  // Pattern 1: Labels in quotes like 「A」「い」
+  const quotePattern = /[「『]([あ-おア-オA-Z])[」』]/g
+  while ((match = quotePattern.exec(question)) !== null) {
+    mentionedLabels.push(match[1])
+  }
+
+  // Pattern 2: "三角形ABC" or "△ABC" style labels
+  const shapeNamePattern = /(?:三角形|△)([A-Z]{2,4})/g
+  while ((match = shapeNamePattern.exec(question)) !== null) {
+    for (const ch of match[1]) mentionedLabels.push(ch)
+  }
+
+  // Pattern 3: "点A" "点P" style
+  const pointPattern = /点([A-Z])/g
+  while ((match = pointPattern.exec(question)) !== null) {
     mentionedLabels.push(match[1])
   }
 
@@ -41,6 +54,7 @@ function validateGraphData(question, graphData) {
     if (hasMissing) return null // Graph missing labels mentioned in question
   }
 
+  // Warn if question seems to need a graph but graphData is null (for debugging)
   return graphData
 }
 
@@ -57,15 +71,23 @@ export async function fetchQuizQuestions({ unitTitle, subUnitTitle, subject, gra
     }
 
     const data = await res.json()
-    return data.questions.map((q, i) => ({
-      id: i + 1,
-      type: '4choice',
-      question: q.question,
-      choices: q.choices,
-      answer: q.correctIndex,
-      explanation: q.explanation,
-      graphData: validateGraphData(q.question, q.graphData),
-    }))
+    return data.questions.map((q, i) => {
+      const validatedGraph = validateGraphData(q.question, q.graphData)
+      // Debug warning: question seems to need a graph but has none
+      if (!validatedGraph && /グラフ|図形|三角形|四角形|長方形|円|直線|数直線|座標/.test(q.question)) {
+        console.warn(`[QuizAPI] Question ${i + 1} may need graphData but has none:`, q.question)
+      }
+      return {
+        id: i + 1,
+        type: '4choice',
+        question: q.question,
+        choices: q.choices,
+        answer: q.correctIndex,
+        explanation: q.explanation,
+        hint: q.hint || null,
+        graphData: validatedGraph,
+      }
+    })
   } catch (err) {
     console.error('Failed to fetch quiz questions:', err)
     // Return null so caller can show error state

@@ -35,6 +35,8 @@ export default function QuizPage({ questions, subUnit, mascotId, loading, onComp
   const [lastXp, setLastXp] = useState(0)
   const [showConfetti, setShowConfetti] = useState(false)
   const [confettiKey, setConfettiKey] = useState(0)
+  const [showHint, setShowHint] = useState(false)
+  const [usedHint, setUsedHint] = useState(false)
 
   const q = questions[currentIdx]
   const progress = ((currentIdx + (isAnswered ? 1 : 0)) / questions.length) * 100
@@ -51,7 +53,8 @@ export default function QuizPage({ questions, subUnit, mascotId, loading, onComp
 
     if (correct) {
       const comboBonus = Math.min(combo, 5) * 2
-      const earned = 10 + comboBonus
+      const baseXp = usedHint ? 5 : 10
+      const earned = baseXp + comboBonus
       setLastXp(earned)
       setXpGained(prev => prev + earned)
       setCombo(prev => prev + 1)
@@ -83,6 +86,8 @@ export default function QuizPage({ questions, subUnit, mascotId, loading, onComp
       setIsAnswered(false)
       setIsCorrect(false)
       setShowExplanation(false)
+      setShowHint(false)
+      setUsedHint(false)
       setMascotState('normal')
     }
   }
@@ -282,6 +287,41 @@ export default function QuizPage({ questions, subUnit, mascotId, loading, onComp
                 </div>
               )}
             </motion.div>
+
+            {/* Hint Button (English only, before answering) */}
+            {q.hint && !isAnswered && (
+              <div style={{ marginBottom: 12, textAlign: 'center' }}>
+                {!showHint ? (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={() => { setShowHint(true); setUsedHint(true) }}
+                    style={{
+                      background: 'linear-gradient(135deg, #FFF8E1, #FFECB3)',
+                      border: '1px solid #FFD54F',
+                      borderRadius: 14, padding: '10px 20px', cursor: 'pointer',
+                      display: 'inline-flex', alignItems: 'center', gap: 8,
+                      fontSize: 14, fontWeight: 700, color: '#FF8F00',
+                    }}
+                  >
+                    <Lightbulb size={16} /> ヒントを見る💡
+                    <span style={{ fontSize: 11, opacity: 0.7 }}>（XP半減）</span>
+                  </motion.button>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    style={{
+                      display: 'inline-block', background: '#FFF8E1', borderRadius: 14,
+                      padding: '10px 20px', border: '1px solid #FFD54F',
+                      fontSize: 14, color: '#5D4037', fontWeight: 600, lineHeight: 1.6,
+                    }}
+                  >
+                    💡 {q.hint}
+                  </motion.div>
+                )}
+              </div>
+            )}
 
             {/* Choices - 2x2 grid */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
