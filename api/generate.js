@@ -2,34 +2,79 @@ export const config = {
   maxDuration: 60,
 }
 
+// Check if a side/dimension is the "unknown" being asked about
+function isBeingAsked(question, sideLabel) {
+  const patterns = [
+    new RegExp(`(?:辺)?${sideLabel}.*?(?:何|いくつ|求め|？|\\?)`),
+    new RegExp(`(?:何|いくつ|求め).*?(?:辺)?${sideLabel}`),
+  ]
+  return patterns.some(re => re.test(question))
+}
+
+// Generic side extractor for quadrilaterals (4 sides)
+function extractQuadSides(question, labels) {
+  const sides = []
+  for (let i = 0; i < 4; i++) {
+    const a = labels[i], b = labels[(i + 1) % 4]
+    const re = new RegExp(
+      `(?:辺)?(?:${a}${b}|${b}${a})(?:\\s*(?:の長さ)?\\s*[=がは]\\s*|\\s*=\\s*)(\\d+\\.?\\d*)\\s*(cm|m)?`
+    )
+    const m = question.match(re)
+    if (m && !isBeingAsked(question, `${a}${b}`) && !isBeingAsked(question, `${b}${a}`)) {
+      sides.push(`${m[1]}${m[2] || 'cm'}`)
+    } else {
+      sides.push(null)
+    }
+  }
+  return sides.some(Boolean) ? sides : undefined
+}
+
 // Auto-generate graphData by parsing question text (server-side, 100% reliable)
 function autoGenerateGraphData(question) {
+  // Fix 5: Normalize full-width characters to ASCII (affects all downstream regex)
+  question = question
+    .replace(/[−\u2212\u2013\u2014\u30FC\u2010]/g, '-')
+    .replace(/＝/g, '=').replace(/＋/g, '+')
+    .replace(/（/g, '(').replace(/）/g, ')')
+
   // --- Triangle: 三角形ABC, △ABC ---
   const triMatch = question.match(/(?:三角形|△)\s*([A-Z])([A-Z])([A-Z])/)
   if (triMatch) {
     const labels = [triMatch[1], triMatch[2], triMatch[3]]
     const sides = []
     const angles = []
-    // Extract side lengths: AB=5cm, BC = 3cm, etc.
     for (let i = 0; i < 3; i++) {
       const a = labels[i], b = labels[(i + 1) % 3]
-      const sideRe = new RegExp(`(?:${a}${b}|${b}${a})\\s*[=＝]\\s*([\\d.]+)\\s*(cm|m)?`, 'i')
+      const sideRe = new RegExp(
+        `(?:辺)?(?:${a}${b}|${b}${a})(?:\\s*(?:の長さ)?\\s*[=がは]\\s*|\\s*=\\s*)(\\d+\\.?\\d*)\\s*(cm|m)?`
+      )
       const m = question.match(sideRe)
-      sides.push(m ? `${m[1]}${m[2] || 'cm'}` : null)
+      // Fix 3: Don't show sides that are being asked about
+      if (m && !isBeingAsked(question, `${a}${b}`) && !isBeingAsked(question, `${b}${a}`)) {
+        sides.push(`${m[1]}${m[2] || 'cm'}`)
+      } else {
+        sides.push(null)
+      }
     }
-    // Extract angles: ∠A=90°, 角A = 60°
     for (const lbl of labels) {
-      const angRe = new RegExp(`[∠角]\\s*${lbl}\\s*[=＝]\\s*([\\d.]+)[°度]`)
+      const angRe = new RegExp(`[∠角]\\s*${lbl}\\s*[=]\\s*(\\d+\\.?\\d*)[°度]`)
       const m = question.match(angRe)
-      angles.push(m ? `${m[1]}°` : null)
+      if (m && !isBeingAsked(question, `∠${lbl}`) && !isBeingAsked(question, `角${lbl}`)) {
+        angles.push(`${m[1]}°`)
+      } else {
+        angles.push(null)
+      }
     }
-    // Check for "直角" (right angle)
     const rightMatch = question.match(/[∠角]\s*([A-Z])\s*.*?直角/)
     if (rightMatch && labels.includes(rightMatch[1])) {
       const idx = labels.indexOf(rightMatch[1])
       angles[idx] = '90°'
     }
-    return { type: 'shape', shape: 'triangle', labels, sides: sides.some(Boolean) ? sides : undefined, angles: angles.some(Boolean) ? angles : undefined }
+    return {
+      type: 'shape', shape: 'triangle', labels,
+      sides: sides.some(Boolean) ? sides : undefined,
+      angles: angles.some(Boolean) ? angles : undefined,
+    }
   }
 
   // --- Rhombus: ひし形ABCD ---
@@ -37,10 +82,12 @@ function autoGenerateGraphData(question) {
   if (rhombusMatch) {
     const labels = [rhombusMatch[1], rhombusMatch[2], rhombusMatch[3], rhombusMatch[4]]
     const diagonals = []
-    // Extract diagonals: 対角線の長さがそれぞれ8cm、6cm or 対角線AC=8cm
     const diagPairMatch = question.match(/対角線.*?(\d+)\s*(cm|m).*?(\d+)\s*(cm|m)/)
     if (diagPairMatch) {
-      diagonals.push(`${diagPairMatch[1]}${diagPairMatch[2]}`, `${diagPairMatch[3]}${diagPairMatch[4]}`)
+      // Fix 3: Check if diagonals are being asked
+      if (!isBeingAsked(question, '対角線')) {
+        diagonals.push(`${diagPairMatch[1]}${diagPairMatch[2]}`, `${diagPairMatch[3]}${diagPairMatch[4]}`)
+      }
     }
     return { type: 'shape', shape: 'rhombus', labels, diagonals: diagonals.length === 2 ? diagonals : undefined }
   }
@@ -49,37 +96,16 @@ function autoGenerateGraphData(question) {
   const paraMatch = question.match(/平行四辺形\s*([A-Z])([A-Z])([A-Z])([A-Z])/)
   if (paraMatch) {
     const labels = [paraMatch[1], paraMatch[2], paraMatch[3], paraMatch[4]]
-    // Extract width/height from side mentions
-    let width, height
-    for (let i = 0; i < 4; i++) {
-      const a = labels[i], b = labels[(i + 1) % 4]
-      const sideRe = new RegExp(`(?:辺)?${a}${b}|${b}${a}.*?(\[\\d.]+)\\s*(cm|m)`, 'i')
-      const m = question.match(new RegExp(`(?:辺)?(?:${a}${b}|${b}${a})\\s*[=＝の長さがは]\\s*(\\d+\\.?\\d*)\\s*(cm|m)?`))
-      if (m) {
-        if (i % 2 === 0) width = `${m[1]}${m[2] || 'cm'}`
-        else height = `${m[1]}${m[2] || 'cm'}`
-      }
-    }
-    return { type: 'shape', shape: 'parallelogram', labels, width, height }
+    const sides = extractQuadSides(question, labels)
+    return { type: 'shape', shape: 'parallelogram', labels, sides }
   }
 
-  // --- Rectangle: 長方形, 四角形ABCD (when context suggests rectangle) ---
+  // --- Rectangle/Square with labels: 長方形ABCD ---
   const rectMatch = question.match(/(?:長方形|正方形)\s*([A-Z])([A-Z])([A-Z])([A-Z])/)
   if (rectMatch) {
     const labels = [rectMatch[1], rectMatch[2], rectMatch[3], rectMatch[4]]
-    let width, height
-    for (let i = 0; i < 4; i++) {
-      const a = labels[i], b = labels[(i + 1) % 4]
-      const m = question.match(new RegExp(`(?:辺)?(?:${a}${b}|${b}${a})\\s*[=＝の長さがは]\\s*(\\d+\\.?\\d*)\\s*(cm|m)?`))
-      if (m) {
-        if (i % 2 === 0) width = `${m[1]}${m[2] || 'cm'}`
-        else height = `${m[1]}${m[2] || 'cm'}`
-      }
-    }
-    // Fallback: 縦○cm、横○cm
-    if (!width) { const m = question.match(/[横幅]\s*[=＝がは]\s*(\d+\.?\d*)\s*(cm|m)/); if (m) width = `${m[1]}${m[2]}` }
-    if (!height) { const m = question.match(/[縦高さ]\s*[=＝がは]\s*(\d+\.?\d*)\s*(cm|m)/); if (m) height = `${m[1]}${m[2]}` }
-    return { type: 'shape', shape: 'rectangle', labels, width, height }
+    const sides = extractQuadSides(question, labels)
+    return { type: 'shape', shape: 'rectangle', labels, sides }
   }
 
   // --- Rectangle without labels: 縦3cm、横5cmの長方形 ---
@@ -87,35 +113,43 @@ function autoGenerateGraphData(question) {
     let width, height
     const wm = question.match(/横\s*(\d+\.?\d*)\s*(cm|m)/)
     const hm = question.match(/縦\s*(\d+\.?\d*)\s*(cm|m)/)
-    if (wm) width = `${wm[1]}${wm[2]}`
-    if (hm) height = `${hm[1]}${hm[2]}`
+    if (wm && !isBeingAsked(question, '横')) width = `${wm[1]}${wm[2]}`
+    if (hm && !isBeingAsked(question, '縦')) height = `${hm[1]}${hm[2]}`
     if (width || height) return { type: 'shape', shape: 'rectangle', width, height }
   }
 
   // --- Circle: 円, 半径○cm ---
   if (/円/.test(question)) {
-    const rMatch = question.match(/半径\s*[=＝がは]?\s*(\d+\.?\d*)\s*(cm|m)/)
-    const dMatch = question.match(/直径\s*[=＝がは]?\s*(\d+\.?\d*)\s*(cm|m)/)
-    if (rMatch) return { type: 'shape', shape: 'circle', radius: `${rMatch[1]}${rMatch[2]}` }
-    if (dMatch) return { type: 'shape', shape: 'circle', radius: `${parseFloat(dMatch[1]) / 2}${dMatch[2]}` }
+    const rMatch = question.match(/半径\s*[=がは]?\s*(\d+\.?\d*)\s*(cm|m)/)
+    const dMatch = question.match(/直径\s*[=がは]?\s*(\d+\.?\d*)\s*(cm|m)/)
+    // Fix 3: Don't show radius/diameter if that's the question
+    if (rMatch && !isBeingAsked(question, '半径')) {
+      return { type: 'shape', shape: 'circle', radius: `${rMatch[1]}${rMatch[2]}` }
+    }
+    if (dMatch && !isBeingAsked(question, '直径')) {
+      return { type: 'shape', shape: 'circle', radius: `${parseFloat(dMatch[1]) / 2}${dMatch[2]}` }
+    }
+    // Still show circle even without dimensions
+    if (rMatch || dMatch) return { type: 'shape', shape: 'circle' }
   }
 
   // --- Linear function graph: y = ax + b ---
-  const lineMatches = [...question.matchAll(/y\s*[=＝]\s*(-?\d*\.?\d*)x\s*([+\-＋−]\s*\d+\.?\d*)?/g)]
+  const lineMatches = [...question.matchAll(/y\s*=\s*(-?\d*\.?\d*)x\s*([+-]\s*\d+\.?\d*)?/g)]
   if (lineMatches.length > 0) {
     const lines = lineMatches.map(m => {
       const slope = m[1] === '' || m[1] === '-' ? (m[1] === '-' ? -1 : 1) : parseFloat(m[1])
-      const intercept = m[2] ? parseFloat(m[2].replace(/[＋]/g, '+').replace(/[−]/g, '-').replace(/\s/g, '')) : 0
+      const intercept = m[2] ? parseFloat(m[2].replace(/\s/g, '')) : 0
       return { slope, intercept, label: m[0].trim() }
     })
-    // Extract labeled points: 点A(2, 3)
     const points = []
-    const ptMatches = [...question.matchAll(/点([A-Z])\s*[（(]\s*(-?\d+\.?\d*)\s*[,、]\s*(-?\d+\.?\d*)\s*[）)]/g)]
+    const ptMatches = [...question.matchAll(/点([A-Z])\s*[(]\s*(-?\d+\.?\d*)\s*[,、]\s*(-?\d+\.?\d*)\s*[)]/g)]
     for (const pm of ptMatches) {
       points.push({ x: parseFloat(pm[2]), y: parseFloat(pm[3]), label: pm[1] })
     }
-    const maxVal = Math.max(5, ...lines.map(l => Math.abs(l.intercept) + Math.abs(l.slope) * 3))
-    return { type: 'coordinate', range: Math.min(Math.ceil(maxVal), 10), lines, points: points.length > 0 ? points : undefined }
+    // Fix 4: Use smaller range for readability
+    const maxIntercept = Math.max(...lines.map(l => Math.abs(l.intercept)))
+    const range = maxIntercept > 4 ? Math.min(Math.ceil(maxIntercept) + 1, 8) : 5
+    return { type: 'coordinate', range, lines, points: points.length > 0 ? points : undefined }
   }
 
   // --- Number line: 数直線 ---
@@ -125,8 +159,7 @@ function autoGenerateGraphData(question) {
       const min = Math.min(...nums, -5)
       const max = Math.max(...nums, 5)
       const points = []
-      // Extract labeled points on number line: 点P が 3
-      const nlPts = [...question.matchAll(/点([A-ZP-Z])\s*[=＝がはを]\s*(-?\d+\.?\d*)/g)]
+      const nlPts = [...question.matchAll(/点([A-Z])\s*[=がはを]\s*(-?\d+\.?\d*)/g)]
       for (const m of nlPts) {
         points.push({ value: parseFloat(m[2]), label: m[1] })
       }
@@ -134,7 +167,7 @@ function autoGenerateGraphData(question) {
     }
   }
 
-  return null // Pure calculation, no graph needed
+  return null
 }
 
 export default async function handler(req, res) {
@@ -156,10 +189,14 @@ export default async function handler(req, res) {
 
   const mathGraphInstruction = subject === 'math' ? `
 - 図形やグラフの問題では、問題文に具体的な数値（辺の長さ、半径、座標、傾き、切片など）を必ず明記すること。
-- 図形問題では頂点名（A, B, C, D等）を問題文に含めること。
-- 問題文だけで解ける形にすること（図は自動生成されます）。
-- 描画できる図形: 三角形、長方形、平行四辺形、ひし形、円、一次関数グラフ、数直線
-- 描画できない図形（展開図、立体、回転体等）の問題は出題しないこと。` : ''
+- 図形問題では頂点名（A, B, C, D等）を問題文に含めること。例: 「三角形ABCで、AB = 5cm、BC = 7cm…」
+- 辺の長さを記述する際は「辺AB = 5cm」「AB = 5cm」の形式を使うこと（図は自動生成されます）。
+- 描画できる図形: 三角形、長方形、平行四辺形、ひし形、円、一次関数グラフ(y = ax + b)、数直線
+- 描画できない図形（展開図、立体、回転体、おうぎ形等）の問題は出題しないこと。
+- 【出題バランス】${count}問中、必ず以下を含めること：
+  ・図形問題（三角形/四角形/円のいずれか）を2問以上
+  ・座標グラフ(y = ax + b形式)または数直線の問題を1問以上
+  ・純粋な計算問題を1-2問` : ''
 
   const isSummaryTest = subUnitTitle === 'まとめテスト'
   const summaryInstruction = isSummaryTest ? `
@@ -235,12 +272,11 @@ ${summaryInstruction}
 
     const questions = JSON.parse(jsonMatch[0])
 
-    // Auto-generate graphData for math questions that need it
+    // Auto-generate graphData for math questions
     if (subject === 'math') {
       for (const q of questions) {
         const aiGraph = q.graphData
         const autoGraph = autoGenerateGraphData(q.question)
-        // Use AI's graphData if valid, otherwise use auto-generated
         q.graphData = aiGraph || autoGraph
       }
     }
