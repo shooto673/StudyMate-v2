@@ -1,12 +1,19 @@
 // MathGraph - SVG-based graph/figure renderer for math quiz questions
 // Renders coordinate planes, linear graphs, shapes, and number lines
 
+// Parse angle string like "35°" or "90" to number
+function parseAngle(a) {
+  if (a === null || a === undefined) return null
+  const m = String(a).match(/(\d+(?:\.\d+)?)/)
+  return m ? parseFloat(m[1]) : null
+}
+
 // Compute triangle vertices proportional to actual side lengths using law of cosines
 function computeTriangleVertices(sides, W, H, pad) {
   if (!sides) return null
   const nums = sides.map(s => {
     if (!s) return null
-    const m = s.match(/([\d.]+)/)
+    const m = String(s).match(/([\d.]+)/)
     return m ? parseFloat(m[1]) : null
   })
   // sides[0]=AB (vertex0→1), sides[1]=BC (vertex1→2), sides[2]=CA (vertex2→0)
@@ -28,6 +35,45 @@ function computeTriangleVertices(sides, W, H, pad) {
     { x: a, y: 0 },                       // C
   ]
 
+  return fitAndCenter(raw, W, H, pad)
+}
+
+// Compute triangle vertices from angles using law of sines (for angle-only problems)
+function computeTriangleFromAngles(angles, W, H, pad) {
+  if (!angles || angles.length !== 3) return null
+  const parsed = angles.map(parseAngle)
+  const known = parsed.filter(x => x !== null)
+  if (known.length < 2) return null
+  // Fill in the missing angle if exactly 2 known (sum = 180)
+  let [A, B, C] = parsed
+  if (A === null) A = 180 - (B || 0) - (C || 0)
+  if (B === null) B = 180 - (A || 0) - (C || 0)
+  if (C === null) C = 180 - (A || 0) - (B || 0)
+  if (A <= 0 || B <= 0 || C <= 0 || A >= 180 || B >= 180 || C >= 180) return null
+
+  // Law of sines: a/sin(A) = b/sin(B) = c/sin(C)
+  // Assign side BC=a, CA=b, AB=c with a=1 for reference
+  const sinA = Math.sin(A * Math.PI / 180)
+  const sinB = Math.sin(B * Math.PI / 180)
+  const sinC = Math.sin(C * Math.PI / 180)
+  const a = 1
+  const b = sinB / sinA
+  const c = sinC / sinA
+
+  // Place B at origin, C at (a, 0), compute A using angle B
+  const cosB = Math.cos(B * Math.PI / 180)
+  const sinBrad = Math.sin(B * Math.PI / 180)
+  const raw = [
+    { x: c * cosB, y: c * sinBrad }, // A
+    { x: 0, y: 0 },                   // B
+    { x: a, y: 0 },                   // C
+  ]
+
+  return fitAndCenter(raw, W, H, pad)
+}
+
+// Scale and center raw vertices to fit inside the SVG canvas
+function fitAndCenter(raw, W, H, pad) {
   const xs = raw.map(v => v.x), ys = raw.map(v => v.y)
   const minX = Math.min(...xs), maxX = Math.max(...xs)
   const minY = Math.min(...ys), maxY = Math.max(...ys)
@@ -67,6 +113,22 @@ function dynamicSideOffsets(vertices, count) {
 
 export default function MathGraph({ graphData }) {
   if (!graphData || !graphData.type) return null
+
+  // Handle triangle pairs (congruence/similarity): render two shapes side by side
+  if (graphData.secondShape && graphData.secondShape.shape) {
+    const { secondShape, ...firstData } = graphData
+    const secondData = { type: 'shape', ...secondShape }
+    const isCongruent = graphData.type === 'shape' && graphData.shape === secondShape.shape
+    return (
+      <div style={{ display: 'flex', gap: 6, alignItems: 'center', justifyContent: 'center', flexWrap: 'wrap' }}>
+        <MathGraph graphData={firstData} />
+        <div style={{ fontSize: 28, color: '#6C63FF', fontWeight: 700, padding: '0 2px' }}>
+          {isCongruent ? '≅' : '∽'}
+        </div>
+        <MathGraph graphData={secondData} />
+      </div>
+    )
+  }
 
   const W = 280
   const H = 220
@@ -184,9 +246,10 @@ export default function MathGraph({ graphData }) {
   if (graphData.type === 'shape') {
     return (
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} style={{ display: 'block', margin: '0 auto' }}>
-        {/* Triangle - proportional to side lengths */}
+        {/* Triangle - proportional to side lengths (or angles as fallback) */}
         {graphData.shape === 'triangle' && (() => {
           const computed = computeTriangleVertices(graphData.sides, W, H, pad)
+                        || computeTriangleFromAngles(graphData.angles, W, H, pad)
           const vertices = computed || [
             { x: cx, y: pad + 10 },
             { x: pad + 20, y: H - pad },

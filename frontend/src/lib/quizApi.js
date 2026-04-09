@@ -21,9 +21,14 @@ function validateGraphData(question, graphData) {
   }
 
   // For shapes, must have valid shape type
+  const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle']
   if (graphData.type === 'shape') {
-    const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle']
     if (!SUPPORTED_SHAPES.includes(graphData.shape)) return null
+    // If secondShape exists, it must also be a supported shape
+    if (graphData.secondShape && !SUPPORTED_SHAPES.includes(graphData.secondShape.shape)) {
+      // Drop the invalid secondShape but keep the primary shape
+      delete graphData.secondShape
+    }
   }
 
   // Check if question mentions labels that graph should contain
@@ -50,11 +55,15 @@ function validateGraphData(question, graphData) {
 
   if (mentionedLabels.length > 0 && graphData.type === 'shape') {
     const graphLabels = graphData.labels || []
-    const hasMissing = mentionedLabels.some(l => !graphLabels.includes(l))
-    if (hasMissing) return null // Graph missing labels mentioned in question
+    const secondLabels = (graphData.secondShape && graphData.secondShape.labels) || []
+    const allLabels = [...graphLabels, ...secondLabels]
+    // Only reject if MORE than half the mentioned labels are missing.
+    // This prevents false negatives when GPT-4o-mini extracts slightly differently
+    // while still catching obviously wrong graphs.
+    const missingCount = mentionedLabels.filter(l => !allLabels.includes(l)).length
+    if (missingCount > mentionedLabels.length / 2) return null
   }
 
-  // Warn if question seems to need a graph but graphData is null (for debugging)
   return graphData
 }
 

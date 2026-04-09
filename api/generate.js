@@ -30,6 +30,19 @@ const GRAPH_DATA_SCHEMA = {
                 width: { type: ['string', 'null'], description: 'Width for unlabeled rectangles' },
                 height: { type: ['string', 'null'], description: 'Height for unlabeled rectangles' },
                 radius: { type: ['string', 'null'], description: 'Radius for circles' },
+                // Second shape for congruence/similarity pairs (三角形ABC ≅ 三角形DEF)
+                secondShape: {
+                  type: ['object', 'null'],
+                  description: 'Second triangle/shape for congruence or similarity problems',
+                  properties: {
+                    shape: { type: ['string', 'null'], enum: ['triangle', 'rectangle', 'parallelogram', 'rhombus', 'circle', null] },
+                    labels: { type: ['array', 'null'], items: { type: 'string' } },
+                    sides: { type: ['array', 'null'], items: { type: ['string', 'null'] } },
+                    angles: { type: ['array', 'null'], items: { type: ['string', 'null'] } },
+                  },
+                  required: ['shape', 'labels', 'sides', 'angles'],
+                  additionalProperties: false,
+                },
                 // Coordinate properties
                 range: { type: ['number', 'null'], description: 'Axis range, default 5' },
                 lines: { type: ['array', 'null'], items: { type: 'object', properties: { slope: { type: 'number' }, intercept: { type: 'number' }, label: { type: 'string' } }, required: ['slope', 'intercept', 'label'], additionalProperties: false } },
@@ -39,7 +52,12 @@ const GRAPH_DATA_SCHEMA = {
                 max: { type: ['number', 'null'] },
                 nlPoints: { type: ['array', 'null'], items: { type: 'object', properties: { value: { type: 'number' }, label: { type: 'string' } }, required: ['value', 'label'], additionalProperties: false } },
               },
-              required: ['type'],
+              required: [
+                'type', 'shape', 'labels', 'sides', 'angles', 'diagonals',
+                'width', 'height', 'radius', 'secondShape',
+                'range', 'lines', 'points',
+                'min', 'max', 'nlPoints',
+              ],
               additionalProperties: false,
             },
           },
@@ -61,15 +79,35 @@ async function extractGraphData(questions, openaiKey) {
 
   const extractionPrompt = `以下の数学の問題文から、図形・グラフ・数直線の描画に必要な構造化データを抽出してください。
 
+【最重要】図形・グラフが登場する全ての問題で needsGraph=true にすること。生徒にとって可視化は理解の鍵です。
+- 三角形（直角三角形、二等辺三角形、正三角形、合同・相似な三角形など）→ needsGraph=true
+- 四角形（長方形、正方形、平行四辺形、ひし形、台形）→ needsGraph=true
+- 円・おうぎ形 → needsGraph=true
+- 座標・一次関数グラフ → needsGraph=true
+- 数直線 → needsGraph=true
+- 角度だけ与えられている三角形でも needsGraph=true（sidesをnullにしてもOK）
+- 純粋な計算問題（方程式を解く等）のみ needsGraph=false, graphData=null
+
 ルール:
-- 問題に図形（三角形、四角形、円など）やグラフ（一次関数）や数直線が含まれる場合、needsGraph=true にしてgraphDataを返す
-- 純粋な計算問題（方程式を解く等）は needsGraph=false, graphData=null
-- 【重要】問題で「求めなさい」「何cm？」「いくつ？」と聞かれている辺・角度・半径は、sides/angles/radiusに含めないこと（答えを見せてしまうため）。既知の情報のみ含める
+- 【重要】問題で「求めなさい」「何cm？」「いくつ？」「何度？」と聞かれている辺・角度・半径は、sides/angles/radiusに null を入れること（答えを見せてしまうため）
 - 三角形のsides順序: [AB, BC, CA]（頂点ラベルの隣接辺順）
+- 三角形のangles順序: [∠A, ∠B, ∠C]（各頂点の内角、順序厳守）
 - 四角形のsides順序: [AB, BC, CD, DA]
 - 座標グラフのrangeは5を基本とする（切片が大きい場合のみ増やす、最大8）
 - 「AB = AC = 8cm」のような共有値も正しく各辺に展開すること
 - 「二等辺三角形ABC、AB = AC = 8cm」→ sides: ["8cm", null, "8cm"] (ABが8cm、BCは不明or問われている、CAが8cm)
+
+【直角三角形（必ず可視化）】
+- 「直角三角形ABC、∠C=90°、∠A=35°」→ labels:["A","B","C"], angles:["35°",null,"90°"], sides:null でOK
+- 直角三角形は sidesがなくても necessarily needsGraph=true にすること
+
+【合同・相似な三角形のペア（必ず可視化）】
+- 「三角形ABC ≅ 三角形DEF」「三角形ABC と 三角形DEF は合同」のような問題は secondShape に2つ目の三角形を設定すること
+- 例: 「三角形ABCと三角形DEFは合同。AB=4cm、BC=5cm、CA=6cm。三角形DEFの辺の長さで正しいのは？」
+  → shape:"triangle", labels:["A","B","C"], sides:["4cm","5cm","6cm"],
+     secondShape:{shape:"triangle", labels:["D","E","F"], sides:[null,null,null], angles:null}
+- 2つ目の三角形は答えに関わるため、sidesは全て null にすること
+- 問題文に出てくる全ての頂点ラベルが labels または secondShape.labels に含まれるようにすること
 
 問題文:
 ${questionsText}`
@@ -94,18 +132,23 @@ ${questionsText}`
 
     if (!response.ok) {
       const err = await response.text()
-      console.error('OpenAI API error:', err)
+      console.error('[Stage2] OpenAI API error:', response.status, err)
       return null
     }
 
     const data = await response.json()
     const content = data.choices?.[0]?.message?.content
-    if (!content) return null
+    if (!content) {
+      console.error('[Stage2] Empty content from OpenAI')
+      return null
+    }
 
     const parsed = JSON.parse(content)
+    console.log('[Stage2] Extraction success:', parsed.questions?.length || 0, 'questions',
+      'needsGraph count:', parsed.questions?.filter(q => q.needsGraph).length || 0)
     return parsed.questions || null
   } catch (err) {
-    console.error('GraphData extraction error:', err)
+    console.error('[Stage2] GraphData extraction error:', err.message)
     return null
   }
 }
@@ -214,23 +257,40 @@ ${summaryInstruction}
     const questions = JSON.parse(jsonMatch[0])
 
     // === Stage 2: GPT-4o-mini extracts graphData (math only) ===
-    if (subject === 'math' && openaiKey) {
-      const graphResults = await extractGraphData(questions, openaiKey)
+    if (subject === 'math') {
+      console.log('[Stage2] Starting extraction. OpenAI key present:', !!openaiKey, 'questions:', questions.length)
+      if (!openaiKey) {
+        console.warn('[Stage2] OPENAI_API_KEY not set — skipping graph extraction')
+      } else {
+        const graphResults = await extractGraphData(questions, openaiKey)
 
-      if (graphResults) {
-        for (const gResult of graphResults) {
-          const idx = gResult.questionIndex
-          if (idx >= 0 && idx < questions.length && gResult.needsGraph && gResult.graphData) {
-            const gd = gResult.graphData
-            // Map nlPoints to points for numberline compatibility
-            if (gd.type === 'numberline' && gd.nlPoints) {
-              gd.points = gd.nlPoints
-              delete gd.nlPoints
+        if (graphResults) {
+          let appliedCount = 0
+          for (const gResult of graphResults) {
+            const idx = gResult.questionIndex
+            if (idx >= 0 && idx < questions.length && gResult.needsGraph && gResult.graphData) {
+              const gd = gResult.graphData
+              // Map nlPoints to points for numberline compatibility
+              if (gd.type === 'numberline' && gd.nlPoints) {
+                gd.points = gd.nlPoints
+                delete gd.nlPoints
+              }
+              // Clean null fields at top level
+              Object.keys(gd).forEach(k => { if (gd[k] === null) delete gd[k] })
+              // Clean null fields inside secondShape; drop it entirely if empty/shape-less
+              if (gd.secondShape) {
+                Object.keys(gd.secondShape).forEach(k => {
+                  if (gd.secondShape[k] === null) delete gd.secondShape[k]
+                })
+                if (!gd.secondShape.shape) delete gd.secondShape
+              }
+              questions[idx].graphData = gd
+              appliedCount++
             }
-            // Clean null fields
-            Object.keys(gd).forEach(k => { if (gd[k] === null) delete gd[k] })
-            questions[idx].graphData = gd
           }
+          console.log('[Stage2] Applied graphData to', appliedCount, 'of', questions.length, 'questions')
+        } else {
+          console.error('[Stage2] Extraction returned null — no graphs applied')
         }
       }
     }
