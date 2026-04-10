@@ -1,118 +1,57 @@
-// MathGraph - SVG-based graph/figure renderer for math quiz questions
-// Renders coordinate planes, linear graphs, shapes, and number lines
+// MathGraph - SVG-based graph/figure renderer for math quiz questions.
+// Geometry helpers live in lib/graphGeometry.js so they can be unit-tested.
+import {
+  computeTriangleVertices,
+  computeTriangleFromAngles,
+  dynamicLabelOffsets,
+  dynamicSideOffsets,
+} from '../lib/graphGeometry'
 
-// Parse angle string like "35°" or "90" to number
-function parseAngle(a) {
-  if (a === null || a === undefined) return null
-  const m = String(a).match(/(\d+(?:\.\d+)?)/)
-  return m ? parseFloat(m[1]) : null
-}
+const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle']
+const SUPPORTED_TYPES = ['shape', 'coordinate', 'numberline']
+const IS_DEV = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV
 
-// Compute triangle vertices proportional to actual side lengths using law of cosines
-function computeTriangleVertices(sides, W, H, pad) {
-  if (!sides) return null
-  const nums = sides.map(s => {
-    if (!s) return null
-    const m = String(s).match(/([\d.]+)/)
-    return m ? parseFloat(m[1]) : null
-  })
-  // sides[0]=AB (vertex0→1), sides[1]=BC (vertex1→2), sides[2]=CA (vertex2→0)
-  const [ab, bc, ca] = nums
-  if (!ab || !bc || !ca) return null
-  // Validate triangle inequality
-  if (ab + bc <= ca || ab + ca <= bc || bc + ca <= ab) return null
-
-  // Place B at origin, C at (bc, 0)
-  // Use law of cosines to find A
-  const a = bc, b = ca, c = ab
-  const cosB = (a * a + c * c - b * b) / (2 * a * c)
-  const clampedCosB = Math.max(-1, Math.min(1, cosB))
-  const sinB = Math.sqrt(1 - clampedCosB * clampedCosB)
-
-  const raw = [
-    { x: c * clampedCosB, y: c * sinB }, // A
-    { x: 0, y: 0 },                       // B
-    { x: a, y: 0 },                       // C
-  ]
-
-  return fitAndCenter(raw, W, H, pad)
-}
-
-// Compute triangle vertices from angles using law of sines (for angle-only problems)
-function computeTriangleFromAngles(angles, W, H, pad) {
-  if (!angles || angles.length !== 3) return null
-  const parsed = angles.map(parseAngle)
-  const known = parsed.filter(x => x !== null)
-  if (known.length < 2) return null
-  // Fill in the missing angle if exactly 2 known (sum = 180)
-  let [A, B, C] = parsed
-  if (A === null) A = 180 - (B || 0) - (C || 0)
-  if (B === null) B = 180 - (A || 0) - (C || 0)
-  if (C === null) C = 180 - (A || 0) - (B || 0)
-  if (A <= 0 || B <= 0 || C <= 0 || A >= 180 || B >= 180 || C >= 180) return null
-
-  // Law of sines: a/sin(A) = b/sin(B) = c/sin(C)
-  // Assign side BC=a, CA=b, AB=c with a=1 for reference
-  const sinA = Math.sin(A * Math.PI / 180)
-  const sinB = Math.sin(B * Math.PI / 180)
-  const sinC = Math.sin(C * Math.PI / 180)
-  const a = 1
-  const b = sinB / sinA
-  const c = sinC / sinA
-
-  // Place B at origin, C at (a, 0), compute A using angle B
-  const cosB = Math.cos(B * Math.PI / 180)
-  const sinBrad = Math.sin(B * Math.PI / 180)
-  const raw = [
-    { x: c * cosB, y: c * sinBrad }, // A
-    { x: 0, y: 0 },                   // B
-    { x: a, y: 0 },                   // C
-  ]
-
-  return fitAndCenter(raw, W, H, pad)
-}
-
-// Scale and center raw vertices to fit inside the SVG canvas
-function fitAndCenter(raw, W, H, pad) {
-  const xs = raw.map(v => v.x), ys = raw.map(v => v.y)
-  const minX = Math.min(...xs), maxX = Math.max(...xs)
-  const minY = Math.min(...ys), maxY = Math.max(...ys)
-  const rawW = maxX - minX || 1, rawH = maxY - minY || 1
-  const drawW = W - pad * 2 - 20, drawH = H - pad * 2 - 20
-  const scale = Math.min(drawW / rawW, drawH / rawH)
-
-  return raw.map(v => ({
-    x: pad + 10 + (v.x - minX) * scale + (drawW - rawW * scale) / 2,
-    y: H - pad - 10 - (v.y - minY) * scale - (drawH - rawH * scale) / 2,
-  }))
-}
-
-// Compute dynamic label positions pushed away from centroid
-function dynamicLabelOffsets(vertices) {
-  const centX = vertices.reduce((s, v) => s + v.x, 0) / vertices.length
-  const centY = vertices.reduce((s, v) => s + v.y, 0) / vertices.length
-  return vertices.map(v => {
-    const dx = v.x - centX, dy = v.y - centY
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1
-    return { x: v.x + (dx / dist) * 16, y: v.y + (dy / dist) * 16 }
-  })
-}
-
-// Compute side label positions at midpoints, pushed outward
-function dynamicSideOffsets(vertices, count) {
-  const centX = vertices.reduce((s, v) => s + v.x, 0) / vertices.length
-  const centY = vertices.reduce((s, v) => s + v.y, 0) / vertices.length
-  return Array.from({ length: count }, (_, i) => {
-    const v1 = vertices[i], v2 = vertices[(i + 1) % vertices.length]
-    const midX = (v1.x + v2.x) / 2, midY = (v1.y + v2.y) / 2
-    const dx = midX - centX, dy = midY - centY
-    const dist = Math.sqrt(dx * dx + dy * dy) || 1
-    return { x: midX + (dx / dist) * 16, y: midY + (dy / dist) * 16 }
-  })
+// Dev-only placeholder so unrecognized graphData doesn't vanish silently.
+function UnsupportedGraphPlaceholder({ reason }) {
+  if (!IS_DEV) return null
+  return (
+    <div
+      data-testid="graph-unsupported"
+      style={{
+        padding: '8px 12px',
+        borderRadius: 10,
+        border: '1px dashed #FF6B6B',
+        background: '#FFF0F0',
+        color: '#c92a2a',
+        fontSize: 12,
+        fontWeight: 600,
+        textAlign: 'center',
+      }}
+    >
+      [dev] Unsupported graphData: {reason}
+    </div>
+  )
 }
 
 export default function MathGraph({ graphData }) {
-  if (!graphData || !graphData.type) return null
+  if (!graphData || !graphData.type) {
+    if (IS_DEV && graphData) {
+      // Something was passed in but has no recognizable type → surface it in dev
+      console.warn('[MathGraph] graphData has no type', graphData)
+      return <UnsupportedGraphPlaceholder reason="missing type" />
+    }
+    return null
+  }
+
+  if (!SUPPORTED_TYPES.includes(graphData.type)) {
+    console.warn('[MathGraph] unsupported type', graphData.type, graphData)
+    return <UnsupportedGraphPlaceholder reason={`type=${graphData.type}`} />
+  }
+
+  if (graphData.type === 'shape' && !SUPPORTED_SHAPES.includes(graphData.shape)) {
+    console.warn('[MathGraph] unsupported shape', graphData.shape, graphData)
+    return <UnsupportedGraphPlaceholder reason={`shape=${graphData.shape ?? 'null'}`} />
+  }
 
   // Handle triangle pairs (congruence/similarity): render two shapes side by side
   if (graphData.secondShape && graphData.secondShape.shape) {

@@ -1,0 +1,11 @@
+{
+  "name": "studymate-v2-monorepo",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/run.mjs",
+    "build": "npm --prefix frontend run build",
+    "dev": "npm --prefix frontend run dev"
+  }
+}

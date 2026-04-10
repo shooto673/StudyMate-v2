@@ -257,8 +257,20 @@ ${summaryInstruction}
     const questions = JSON.parse(jsonMatch[0])
 
     // === Stage 2: GPT-4o-mini extracts graphData (math only) ===
+    const meta = {
+      stage1: 'claude-haiku',
+      stage2: subject === 'math' ? (openaiKey ? 'pending' : 'skipped_no_key') : 'not_applicable',
+      stage2Error: null,
+      extractionApplied: 0,
+      extractionTotal: questions.length,
+    }
+
     if (subject === 'math') {
-      console.log('[Stage2] Starting extraction. OpenAI key present:', !!openaiKey, 'questions:', questions.length)
+      console.log('[Stage2]', JSON.stringify({
+        unitTitle, subUnitTitle, grade, count: questions.length,
+        openaiKey: !!openaiKey,
+      }))
+
       if (!openaiKey) {
         console.warn('[Stage2] OPENAI_API_KEY not set — skipping graph extraction')
       } else {
@@ -288,14 +300,18 @@ ${summaryInstruction}
               appliedCount++
             }
           }
+          meta.stage2 = 'ok'
+          meta.extractionApplied = appliedCount
           console.log('[Stage2] Applied graphData to', appliedCount, 'of', questions.length, 'questions')
         } else {
+          meta.stage2 = 'failed'
+          meta.stage2Error = 'extractGraphData returned null (see earlier logs)'
           console.error('[Stage2] Extraction returned null — no graphs applied')
         }
       }
     }
 
-    return res.status(200).json({ questions })
+    return res.status(200).json({ questions, _meta: meta })
   } catch (err) {
     console.error('Generate error:', err)
     return res.status(500).json({ error: 'Internal server error', message: err.message })
