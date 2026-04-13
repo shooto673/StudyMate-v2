@@ -109,6 +109,26 @@ const FIXTURES = [
     },
     expectVerticesVia: null,
   },
+  {
+    name: 'quadratic-y=2x²',
+    question: '二次関数 y = 2x² のグラフを描きなさい。',
+    graphData: {
+      type: 'coordinate',
+      range: 5,
+      curves: [{ a: 2, b: 0, c: 0, label: 'y=2x²' }],
+    },
+    expectVerticesVia: null,
+  },
+  {
+    name: 'quadratic-y=-3x²+1',
+    question: '二次関数 y = -3x² + 1 のグラフを描きなさい。',
+    graphData: {
+      type: 'coordinate',
+      range: 5,
+      curves: [{ a: -3, b: 0, c: 1, label: 'y=-3x²+1' }],
+    },
+    expectVerticesVia: null,
+  },
 ]
 
 export default FIXTURES.map(fx => ({

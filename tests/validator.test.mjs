@@ -151,12 +151,37 @@ export default [
     },
   },
   {
+    name: 'validateGraphData accepts coordinate with curves (quadratic)',
+    fn: async () => {
+      const gd = {
+        type: 'coordinate',
+        range: 5,
+        curves: [{ a: 2, b: 0, c: 0, label: 'y=2x²' }],
+      }
+      const out = validateGraphData('二次関数 y=2x² のグラフ', gd)
+      assert.ok(accepted(out), `expected accept, got ${JSON.stringify(out)}`)
+    },
+  },
+  {
+    name: 'validateGraphData rejects coordinate curve with a=0',
+    fn: async () => {
+      const gd = {
+        type: 'coordinate',
+        curves: [{ a: 0, b: 2, c: 3, label: 'y=2x+3' }],
+      }
+      const out = validateGraphData('…', gd)
+      assert.ok(out.rejected)
+      assert.strictEqual(out.reason, 'coordinate_bad_curve')
+    },
+  },
+  {
     name: 'questionLooksVisual detects obvious figure questions',
     fn: async () => {
       assert.ok(questionLooksVisual('三角形ABCの面積'))
       assert.ok(questionLooksVisual('一次関数 y=2x+3 のグラフ'))
       assert.ok(questionLooksVisual('半径 5cm の円'))
       assert.ok(questionLooksVisual('合同な三角形'))
+      assert.ok(questionLooksVisual('二次関数 y=2x² のグラフ'))
       assert.ok(!questionLooksVisual('次の方程式を解きなさい: 2x + 3 = 7'))
     },
   },

@@ -129,6 +129,52 @@ export default function MathGraph({ graphData }) {
             </g>
           )
         })}
+        {/* Quadratic curves (parabolas) */}
+        {(graphData.curves || []).map((curve, i) => {
+          const colors = ['#6C63FF', '#FF6B6B', '#51CF66', '#FF922B']
+          const color = colors[(graphData.lines?.length || 0) + i % colors.length]
+          const { a, b: bCoeff = 0, c: cCoeff = 0 } = curve
+          if (!a || a === 0) return null
+          // Sample points across the visible range
+          const steps = 200
+          const pts = []
+          let inSegment = false
+          for (let s = 0; s <= steps; s++) {
+            const xVal = -range + (2 * range * s) / steps
+            const yVal = a * xVal * xVal + bCoeff * xVal + cCoeff
+            if (Math.abs(yVal) <= range * 2) {
+              const px = toX(xVal)
+              const py = toY(yVal)
+              if (!inSegment) {
+                pts.push(`M ${px},${py}`)
+                inSegment = true
+              } else {
+                pts.push(`L ${px},${py}`)
+              }
+            } else {
+              inSegment = false
+            }
+          }
+          const pathData = pts.join(' ')
+          // Label near vertex
+          const vertexX = -bCoeff / (2 * a)
+          const vertexY = a * vertexX * vertexX + bCoeff * vertexX + cCoeff
+          const labelVisible = Math.abs(vertexX) <= range && Math.abs(vertexY) <= range
+          return (
+            <g key={`curve-${i}`}>
+              <path d={pathData} fill="none" stroke={color} strokeWidth={2.5}
+                strokeLinecap="round" clipPath="url(#graphClip)" />
+              {curve.label && labelVisible && (
+                <text x={toX(vertexX) + 8} y={toY(vertexY) - 10}
+                  fontSize={10} fill={color} fontWeight={700}>{curve.label}</text>
+              )}
+              {curve.label && !labelVisible && (
+                <text x={toX(0) + 8} y={toY(cCoeff) - 10}
+                  fontSize={10} fill={color} fontWeight={700}>{curve.label}</text>
+              )}
+            </g>
+          )
+        })}
         {/* Points */}
         {(graphData.points || []).map((pt, i) => (
           <g key={`pt-${i}`}>

@@ -46,6 +46,7 @@ const GRAPH_DATA_SCHEMA = {
                 // Coordinate properties
                 range: { type: ['number', 'null'], description: 'Axis range, default 5' },
                 lines: { type: ['array', 'null'], items: { type: 'object', properties: { slope: { type: 'number' }, intercept: { type: 'number' }, label: { type: 'string' } }, required: ['slope', 'intercept', 'label'], additionalProperties: false } },
+                curves: { type: ['array', 'null'], description: 'Quadratic curves y = ax² + bx + c', items: { type: 'object', properties: { a: { type: 'number' }, b: { type: 'number' }, c: { type: 'number' }, label: { type: 'string' } }, required: ['a', 'b', 'c', 'label'], additionalProperties: false } },
                 points: { type: ['array', 'null'], items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, label: { type: 'string' } }, required: ['x', 'y', 'label'], additionalProperties: false } },
                 // Numberline properties
                 min: { type: ['number', 'null'] },
@@ -55,7 +56,7 @@ const GRAPH_DATA_SCHEMA = {
               required: [
                 'type', 'shape', 'labels', 'sides', 'angles', 'diagonals',
                 'width', 'height', 'radius', 'secondShape',
-                'range', 'lines', 'points',
+                'range', 'lines', 'curves', 'points',
                 'min', 'max', 'nlPoints',
               ],
               additionalProperties: false,
@@ -71,6 +72,56 @@ const GRAPH_DATA_SCHEMA = {
   },
 }
 
+/**
+ * Re-derive side ordering from the question text to fix LLM misordering.
+ * Parses "AB = 5cm" patterns and places them in the correct [AB,BC,CA] positions.
+ */
+function fixSideOrder(question, labels, sides) {
+  if (!labels || !sides || !question) return sides
+  const n = labels.length
+  if (sides.length !== n) return sides
+
+  const q = question
+    .replace(/[−\u2212\u2013\u2014]/g, '-')
+    .replace(/＝/g, '=')
+
+  const sideMap = new Map()
+
+  // Pattern 1: Chained equality "AB = AC = 8cm"
+  const chainRe = /([A-Z]{2})\s*=\s*([A-Z]{2})\s*=\s*([\d.]+)\s*(cm|m)?/g
+  let m
+  while ((m = chainRe.exec(q)) !== null) {
+    const val = `${m[3]}${m[4] || 'cm'}`
+    for (const pair of [m[1], m[2]]) {
+      sideMap.set(pair, val)
+      sideMap.set(pair[1] + pair[0], val)
+    }
+  }
+
+  // Pattern 2: Simple "AB = 5cm", "ABの長さは5cm"
+  const simpleRe = /([A-Z])([A-Z])\s*(?:の長さ)?(?:\s*[=がは]\s*)([\d.]+)\s*(cm|m)?/g
+  while ((m = simpleRe.exec(q)) !== null) {
+    const key = m[1] + m[2]
+    if (!sideMap.has(key)) {
+      const val = `${m[3]}${m[4] || 'cm'}`
+      sideMap.set(key, val)
+      sideMap.set(m[2] + m[1], val)
+    }
+  }
+
+  if (sideMap.size === 0) return sides
+
+  const fixed = []
+  for (let i = 0; i < n; i++) {
+    const a = labels[i]
+    const b = labels[(i + 1) % n]
+    const key = a + b
+    fixed.push(sideMap.has(key) ? sideMap.get(key) : null)
+  }
+
+  return fixed.some(s => s !== null) ? fixed : sides
+}
+
 // Stage 2: Extract structured graphData from questions using GPT-4o-mini
 async function extractGraphData(questions, openaiKey) {
   const questionsText = questions.map((q, i) =>
@@ -83,7 +134,8 @@ async function extractGraphData(questions, openaiKey) {
 - 三角形（直角三角形、二等辺三角形、正三角形、合同・相似な三角形など）→ needsGraph=true
 - 四角形（長方形、正方形、平行四辺形、ひし形、台形）→ needsGraph=true
 - 円・おうぎ形 → needsGraph=true
-- 座標・一次関数グラフ → needsGraph=true
+- 座標・一次関数グラフ（y = ax + b）→ needsGraph=true, type:"coordinate", lines配列を使用
+- 二次関数グラフ（y = ax²、y = ax² + bx + c）→ needsGraph=true, type:"coordinate", curves配列を使用（linesではない）
 - 数直線 → needsGraph=true
 - 角度だけ与えられている三角形でも needsGraph=true（sidesをnullにしてもOK）
 - 純粋な計算問題（方程式を解く等）のみ needsGraph=false, graphData=null
@@ -94,6 +146,11 @@ async function extractGraphData(questions, openaiKey) {
 - 三角形のangles順序: [∠A, ∠B, ∠C]（各頂点の内角、順序厳守）
 - 四角形のsides順序: [AB, BC, CD, DA]
 - 座標グラフのrangeは5を基本とする（切片が大きい場合のみ増やす、最大8）
+- 【二次関数の扱い】y = ax² + bx + c → curves配列に {a, b, c, label} を設定。linesは使わないこと。
+  例: y = 2x² → curves: [{a: 2, b: 0, c: 0, label: "y=2x²"}]
+  例: y = -3x² + 1 → curves: [{a: -3, b: 0, c: 1, label: "y=-3x²+1"}]
+  例: y = x² - 4x + 3 → curves: [{a: 1, b: -4, c: 3, label: "y=x²-4x+3"}]
+- 【一次関数と二次関数を混同しない】x²（xの2乗）が含まれていたら curves を使う。含まれていなければ lines を使う。
 - 「AB = AC = 8cm」のような共有値も正しく各辺に展開すること
 - 「二等辺三角形ABC、AB = AC = 8cm」→ sides: ["8cm", null, "8cm"] (ABが8cm、BCは不明or問われている、CAが8cm)
 
@@ -174,7 +231,7 @@ export default async function handler(req, res) {
 - 図形やグラフの問題では、問題文に具体的な数値（辺の長さ、半径、座標、傾き、切片など）を必ず明記すること。
 - 図形問題では頂点名（A, B, C, D等）を問題文に含めること。例: 「三角形ABCで、AB = 5cm、BC = 7cm…」
 - 辺の長さを記述する際は「AB = 5cm」の形式を使うこと（図は自動生成されます）。
-- 描画できる図形: 三角形、長方形、平行四辺形、ひし形、円、一次関数グラフ(y = ax + b)、数直線
+- 描画できる図形: 三角形、長方形、平行四辺形、ひし形、円、一次関数グラフ(y = ax + b)、二次関数グラフ(y = ax²、y = ax² + bx + c)、数直線
 - 描画できない図形（展開図、立体、回転体、おうぎ形等）の問題は出題しないこと。
 - 【出題バランス】${count}問中、必ず以下を含めること：
   ・図形問題（三角形/四角形/円のいずれか）を2問以上
@@ -198,7 +255,8 @@ export default async function handler(req, res) {
 【科目】${subjectLabel}
 ${summaryInstruction}
 ルール:
-- 各問題は question（問題文）、choices（4つの選択肢配列）、correctIndex（正解のインデックス0-3）、explanation（解説）を含む
+- 各問題は question（問題文）、choices（4つの選択肢配列）、correctIndex（正解のインデックス0-3）、correctAnswer（正解の選択肢テキスト）、explanation（解説）を含む
+- 【重要】correctAnswer は choices[correctIndex] と完全一致する文字列にすること。解説で導かれる正解がcorrectAnswerと一致することを必ず確認。
 - correctIndexは0-3でランダムに分散させること（毎回同じ位置にしない）
 - 問題は基本〜標準レベル
 - 問題文は簡潔に（中学生が理解できる日本語）
@@ -212,6 +270,7 @@ ${summaryInstruction}
     "question": "問題文",
     "choices": ["選択肢A", "選択肢B", "選択肢C", "選択肢D"],
     "correctIndex": 0,
+    "correctAnswer": "正解の選択肢テキスト（choices[correctIndex]と完全一致）",
     "explanation": "解説文"${subject === 'english' ? ',\n    "hint": "ヒント文"' : ''}
   }
 ]`
@@ -256,6 +315,25 @@ ${summaryInstruction}
 
     const questions = JSON.parse(jsonMatch[0])
 
+    // === Post-Stage-1: Validate correctIndex using correctAnswer ===
+    for (const q of questions) {
+      if (q.correctAnswer && Array.isArray(q.choices)) {
+        const exactIdx = q.choices.indexOf(q.correctAnswer)
+        if (exactIdx !== -1 && exactIdx !== q.correctIndex) {
+          console.warn(`[Stage1] correctIndex fix: ${q.correctIndex} → ${exactIdx} for "${q.correctAnswer}"`)
+          q.correctIndex = exactIdx
+        } else if (exactIdx === -1) {
+          // Fuzzy match: trim whitespace, normalize fullwidth/halfwidth
+          const norm = s => (s || '').replace(/\s+/g, '').replace(/[−\u2212]/g, '-').replace(/＝/g, '=')
+          const fuzzyIdx = q.choices.findIndex(c => norm(c) === norm(q.correctAnswer))
+          if (fuzzyIdx !== -1 && fuzzyIdx !== q.correctIndex) {
+            console.warn(`[Stage1] correctIndex fix (fuzzy): ${q.correctIndex} → ${fuzzyIdx}`)
+            q.correctIndex = fuzzyIdx
+          }
+        }
+      }
+    }
+
     // === Stage 2: GPT-4o-mini extracts graphData (math only) ===
     const meta = {
       stage1: 'claude-haiku',
@@ -295,6 +373,10 @@ ${summaryInstruction}
                   if (gd.secondShape[k] === null) delete gd.secondShape[k]
                 })
                 if (!gd.secondShape.shape) delete gd.secondShape
+              }
+              // Fix side ordering: re-derive from question text
+              if (gd.type === 'shape' && gd.labels && gd.sides) {
+                gd.sides = fixSideOrder(questions[idx].question, gd.labels, gd.sides)
               }
               questions[idx].graphData = gd
               appliedCount++

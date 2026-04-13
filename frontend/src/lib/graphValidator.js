@@ -40,17 +40,25 @@ export function validateGraphData(question, graphData) {
     return { rejected: true, reason: `unsupported_type:${graphData.type}` }
   }
 
-  // Coordinate requires at least one line or point with numeric slope
+  // Coordinate requires at least one line, curve, or point
   if (graphData.type === 'coordinate') {
     const hasLines = Array.isArray(graphData.lines) && graphData.lines.length > 0
+    const hasCurves = Array.isArray(graphData.curves) && graphData.curves.length > 0
     const hasPoints = Array.isArray(graphData.points) && graphData.points.length > 0
-    if (!hasLines && !hasPoints) {
+    if (!hasLines && !hasCurves && !hasPoints) {
       return { rejected: true, reason: 'coordinate_empty' }
     }
     if (hasLines) {
       for (const line of graphData.lines) {
         if (typeof line.slope !== 'number' || Number.isNaN(line.slope)) {
           return { rejected: true, reason: 'coordinate_bad_slope' }
+        }
+      }
+    }
+    if (hasCurves) {
+      for (const curve of graphData.curves) {
+        if (typeof curve.a !== 'number' || curve.a === 0) {
+          return { rejected: true, reason: 'coordinate_bad_curve' }
         }
       }
     }
@@ -95,7 +103,7 @@ export function validateGraphData(question, graphData) {
 }
 
 /** Heuristic: does this question text appear to need a visual? */
-const FIGURE_HINT = /グラフ|図形|三角形|四角形|長方形|平行四辺形|ひし形|菱形|台形|円|直線|数直線|座標|半径|直径|傾き|切片|頂点|一次関数|合同|相似/
+const FIGURE_HINT = /グラフ|図形|三角形|四角形|長方形|平行四辺形|ひし形|菱形|台形|円|直線|数直線|座標|半径|直径|傾き|切片|頂点|一次関数|二次関数|放物線|合同|相似/
 export function questionLooksVisual(question) {
   return FIGURE_HINT.test(question || '')
 }

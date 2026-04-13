@@ -90,4 +90,21 @@ export default [
       assert.deepStrictEqual(typeNode.enum.sort(), ['coordinate', 'numberline', 'shape'])
     },
   },
+  {
+    name: 'graphData.curves is in required list and has correct structure',
+    fn: async () => {
+      const schema = loadSchemaLiteral()
+      const gdNode = schema.schema.properties.questions.items.properties.graphData
+      assert.ok(gdNode.required.includes('curves'),
+        'graphData.required must include curves')
+      const curvesNode = gdNode.properties.curves
+      assert.ok(curvesNode, 'curves property must exist')
+      const itemProps = curvesNode.items.properties
+      assert.ok(itemProps.a, 'curve must have a')
+      assert.ok(itemProps.b, 'curve must have b')
+      assert.ok(itemProps.c, 'curve must have c')
+      assert.ok(itemProps.label, 'curve must have label')
+      assert.deepStrictEqual(curvesNode.items.required.sort(), ['a', 'b', 'c', 'label'])
+    },
+  },
 ]
