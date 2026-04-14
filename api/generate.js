@@ -73,6 +73,28 @@ const GRAPH_DATA_SCHEMA = {
 }
 
 /**
+ * Remove sentences from an explanation that mention variable pairs (e.g. "EF", "BC")
+ * that do not appear in the question or choices.
+ * This catches cross-question contamination like "再計算すると... EF = 10cm".
+ */
+export function removeContaminatedSentences(question, choices, explanation) {
+  if (!explanation) return explanation
+  const context = question + ' ' + (choices || []).join(' ')
+  // Split on Japanese/ASCII sentence-ending punctuation
+  const sentences = explanation.split(/(?<=[。！？\n])\s*/).filter(s => s.trim())
+  const clean = sentences.filter(s => {
+    // Find all two-letter uppercase pairs in this sentence (side names like EF, AB)
+    const pairs = [...s.matchAll(/\b([A-Z]{2})\b/g)].map(m => m[1])
+    return pairs.every(p => context.includes(p))
+  })
+  if (clean.length < sentences.length) {
+    console.warn('[Stage1] Removed contaminated sentence(s) from explanation')
+  }
+  // Hard cap: never more than 4 sentences
+  return clean.slice(0, 4).join('')
+}
+
+/**
  * Re-derive side ordering from the question text to fix LLM misordering.
  * Parses "AB = 5cm" patterns and places them in the correct [AB,BC,CA] positions.
  */
@@ -262,7 +284,9 @@ ${summaryInstruction}
 - 問題文は簡潔に（中学生が理解できる日本語）
 - 【重要】対象学年の範囲を厳守すること。上の学年で習う内容は絶対に使わない。例: 中学1年・2年の問題に√（平方根）や三平方の定理を出さない。中学1年の問題に連立方程式や一次関数を出さない。
 - ${subject === 'english' ? '英語の問題は日本語で出題し、選択肢に英語を含める。文法や語彙を問う形式で。英語の問題は出題形式を多様にすること：穴埋め問題、並べ替え問題、和訳問題、英訳問題、文法選択問題などを混ぜる。短縮形（I\'m / don\'t）と非短縮形（I am / do not）がどちらも文法的に正しい場合は、解説でその旨を必ず言及すること。' : '数学の問題は計算問題や文章題を混ぜて出す。選択肢は数値や式で。数学の問題も出題形式を多様にすること：計算問題、文章題、図形問題、応用問題を混ぜる。'}
-- 解説は2-3文で、以下の構成にすること：①正解の理由 ②よくある間違いの指摘 ③関連するポイント（英語なら許容表現、数学なら公式など）${hintInstruction}${mathGraphInstruction}
+- 解説は2-3文で、以下の構成にすること：①正解の理由 ②よくある間違いの指摘 ③関連するポイント（英語なら許容表現、数学なら公式など）
+- 【解説一貫性の絶対ルール】解説内で一度示した数値（角度・辺の長さ・比の値）を後で別の値に変えないこと。途中計算の結論と最終答えは必ず一致させること。
+- 【解説汚染禁止】解説は必ずその問題固有の数値のみを使うこと。他の問題の数値・変数名（EF、AB等の辺名など）を混入させないこと。各問題の解説は完全に独立して生成すること。${hintInstruction}${mathGraphInstruction}
 
 以下のJSON形式で返してください（JSON以外は一切出力しないでください）:
 [
@@ -315,7 +339,13 @@ ${summaryInstruction}
 
     const questions = JSON.parse(jsonMatch[0])
 
-    // === Post-Stage-1: Validate correctIndex using correctAnswer ===
+    // === Post-Stage-1: Explanation sanitisation + correctIndex repair ===
+    for (const q of questions) {
+      // Remove contaminated sentences (cross-question leakage)
+      if (q.explanation) {
+        q.explanation = removeContaminatedSentences(q.question, q.choices, q.explanation)
+      }
+    }
     for (const q of questions) {
       if (q.correctAnswer && Array.isArray(q.choices)) {
         const exactIdx = q.choices.indexOf(q.correctAnswer)

@@ -4,12 +4,14 @@ import schemaTest from './schema.test.mjs'
 import geometryTest from './geometry.test.mjs'
 import validatorTest from './validator.test.mjs'
 import graphDataShapeTest from './graphDataShape.test.mjs'
+import explanationIntegrityTest from './explanationIntegrity.test.mjs'
 
 const suites = [
   { name: 'schema', cases: schemaTest },
   { name: 'geometry', cases: geometryTest },
   { name: 'validator', cases: validatorTest },
   { name: 'graphDataShape', cases: graphDataShapeTest },
+  { name: 'explanationIntegrity', cases: explanationIntegrityTest },
 ]
 
 let passed = 0
