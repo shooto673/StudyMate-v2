@@ -2,6 +2,44 @@ export const config = {
   maxDuration: 60,
 }
 
+import { GENERATORS } from '../lib/mathSolvers.js'
+import { classifyUnit } from '../lib/classifier.js'
+import { validateQuestionObject } from '../lib/questionValidator.js'
+
+/**
+ * Solver-first generator. Produces `count` questions for the given
+ * classification entirely from deterministic solvers — no LLM involvement.
+ * Each question is independently generated (no shared buffer), which
+ * physically prevents cross-question explanation contamination.
+ */
+function generateSolverQuestions(generators, count) {
+  const out = []
+  let guard = 0
+  while (out.length < count && guard++ < count * 20) {
+    const genKey = generators[out.length % generators.length]
+    const gen = GENERATORS[genKey]
+    if (!gen) continue
+    let q
+    try { q = gen() } catch { continue }
+    // Final validator gate — must pass every rule
+    const v = validateQuestionObject(q, { problemType: q.spec?.problemType })
+    if (!v.ok) {
+      console.warn('[Solver] rejected by validator:', v.errors, 'type=', q.spec?.problemType)
+      continue
+    }
+    out.push({
+      question: q.question,
+      choices: q.choices,
+      correctIndex: q.correctIndex,
+      correctAnswer: q.correctAnswer,
+      explanation: q.explanation,
+      hint: q.hint,
+      _solverSpec: q.spec,
+    })
+  }
+  return out
+}
+
 // JSON Schema for GPT-4o-mini Structured Outputs
 const GRAPH_DATA_SCHEMA = {
   name: 'graph_data_extraction',
@@ -249,6 +287,51 @@ export default async function handler(req, res) {
   const gradeLabel = { j1: '中学1年', j2: '中学2年', j3: '中学3年' }[grade] || '中学1年'
   const subjectLabel = subject === 'english' ? '英語' : '数学'
 
+  // ── Solver-first branch for high-risk math units ──
+  // Classify every math request and, if it matches a solver-required pattern,
+  // bypass the LLM entirely. Each question is generated independently so there
+  // is no shared buffer across questions (physical contamination prevention).
+  const classification = classifyUnit(unitTitle, subUnitTitle, subject)
+  const killSwitchOn = String(process.env.SOLVER_REQUIRED_UNITS_ONLY || '').toLowerCase() === 'true'
+
+  if (subject === 'math' && classification.category === 'solver_required') {
+    try {
+      const solverQuestions = generateSolverQuestions(classification.generators, count)
+      if (solverQuestions.length >= count) {
+        console.log('[Solver] solver-first path used:', {
+          unitTitle, subUnitTitle, generators: classification.generators, count: solverQuestions.length,
+        })
+        return res.status(200).json({
+          questions: solverQuestions,
+          _meta: {
+            stage1: 'solver',
+            stage2: 'not_applicable',
+            classification: classification.category,
+            generators: classification.generators,
+            extractionApplied: 0,
+            extractionTotal: solverQuestions.length,
+          },
+        })
+      }
+      console.warn('[Solver] generator produced', solverQuestions.length, '/', count, '— falling back')
+    } catch (err) {
+      console.error('[Solver] generation error:', err.message)
+    }
+    // If kill-switch is ON and solver failed to meet count, refuse to ship.
+    if (killSwitchOn) {
+      return res.status(503).json({
+        error: 'solver_required_unit_unavailable',
+        message: 'この単元は現在 solver-first モードでのみ配信されます。しばらく時間をおいて再試行してください。',
+      })
+    }
+  } else if (killSwitchOn && subject === 'math' && classification.category !== 'solver_required') {
+    // In kill-switch mode, we only serve solver-required math units.
+    return res.status(503).json({
+      error: 'only_solver_required_units_enabled',
+      message: 'SOLVER_REQUIRED_UNITS_ONLY モードでは solver 対応単元のみ配信されます。',
+    })
+  }
+
   const mathGraphInstruction = subject === 'math' ? `
 - 図形やグラフの問題では、問題文に具体的な数値（辺の長さ、半径、座標、傾き、切片など）を必ず明記すること。
 - 図形問題では頂点名（A, B, C, D等）を問題文に含めること。例: 「三角形ABCで、AB = 5cm、BC = 7cm…」
@@ -337,7 +420,7 @@ ${summaryInstruction}
       return res.status(500).json({ error: 'Failed to parse AI response' })
     }
 
-    const questions = JSON.parse(jsonMatch[0])
+    let questions = JSON.parse(jsonMatch[0])
 
     // === Post-Stage-1: Explanation sanitisation + correctIndex repair ===
     for (const q of questions) {
@@ -362,6 +445,35 @@ ${summaryInstruction}
           }
         }
       }
+    }
+
+    // === Final validator pass (math only): drop questions with critical errors ===
+    if (subject === 'math') {
+      const before = questions.length
+      const kept = []
+      for (const q of questions) {
+        const v = validateQuestionObject(q)
+        // Critical errors that must never ship
+        const CRITICAL = new Set([
+          'correct_answer_not_in_choices',
+          'correct_index_does_not_point_at_correct_answer',
+          'correct_index_out_of_range',
+          'explanation_final_mismatch',
+        ])
+        const hasCritical = v.errors.some(e => CRITICAL.has(e))
+        // Alien-label errors are already mitigated by removeContaminatedSentences,
+        // but if any slip through we also drop them.
+        const hasAlien = v.errors.some(e => e.startsWith('alien_labels:'))
+        if (hasCritical || hasAlien) {
+          console.warn('[Validator] dropped question:', v.errors, '→', q.question?.slice(0, 50))
+          continue
+        }
+        kept.push(q)
+      }
+      if (kept.length < before) {
+        console.warn(`[Validator] kept ${kept.length}/${before} questions`)
+      }
+      questions = kept
     }
 
     // === Stage 2: GPT-4o-mini extracts graphData (math only) ===
