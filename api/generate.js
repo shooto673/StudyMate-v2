@@ -5,6 +5,7 @@ export const config = {
 import { GENERATORS } from '../lib/mathSolvers.js'
 import { classifyUnit } from '../lib/classifier.js'
 import { validateQuestionObject } from '../lib/questionValidator.js'
+import { buildGraphFromSpec } from '../lib/buildGraphFromSpec.js'
 
 /**
  * Solver-first generator. Produces `count` questions for the given
@@ -15,7 +16,7 @@ import { validateQuestionObject } from '../lib/questionValidator.js'
  * Rotation: round-robins through `generators` so every listed problemType
  * is guaranteed to appear at least ⌊count / generators.length⌋ times.
  */
-function generateSolverQuestions(generators, count) {
+function generateSolverQuestions(generators, count, ctx = {}) {
   const out = []
   let guard = 0
   while (out.length < count && guard++ < count * 20) {
@@ -24,21 +25,29 @@ function generateSolverQuestions(generators, count) {
     if (!gen) continue
     let q
     try { q = gen() } catch { continue }
-    // Final validator gate — must pass every rule
-    const v = validateQuestionObject(q, { problemType: q.spec?.problemType })
-    if (!v.ok) {
-      console.warn('[Solver] rejected by validator:', v.errors, 'type=', q.spec?.problemType)
-      continue
-    }
-    out.push({
+    // Attach graphData from spec BEFORE validation (missing_required_graph check)
+    const graphData = buildGraphFromSpec(q.spec)
+    const candidate = {
       question: q.question,
       choices: q.choices,
       correctIndex: q.correctIndex,
       correctAnswer: q.correctAnswer,
       explanation: q.explanation,
       hint: q.hint,
+      graphData,
       _solverSpec: q.spec,
+    }
+    const v = validateQuestionObject(candidate, {
+      problemType: q.spec?.problemType,
+      unitTitle: ctx.unitTitle,
+      subUnitTitle: ctx.subUnitTitle,
+      subject: 'math',
     })
+    if (!v.ok) {
+      console.warn('[Solver] rejected by validator:', v.errors, 'type=', q.spec?.problemType)
+      continue
+    }
+    out.push(candidate)
   }
   return out
 }
@@ -286,6 +295,137 @@ ${questionsText}`
   }
 }
 
+/**
+ * Normalise full-width punctuation / minus signs that LLMs occasionally
+ * emit (e.g. `y = −3x + 6` with U+2212 instead of ASCII '-').  Downstream
+ * regex extraction and the Stage-2 LLM both prefer pure ASCII, so we do
+ * this once at the gate.  Keeps math symbols like `²` untouched.
+ */
+export function normalizeMathText(text) {
+  if (text === null || text === undefined) return text
+  return String(text)
+    // U+2212 MINUS, U+2013 EN DASH, U+2014 EM DASH, U+30FC KATAKANA DASH, U+2010 HYPHEN
+    .replace(/[\u2212\u2013\u2014\u30FC\u2010]/g, '-')
+    .replace(/＝/g, '=')
+    .replace(/＋/g, '+')
+    .replace(/（/g, '(')
+    .replace(/）/g, ')')
+    .replace(/，/g, ',')
+}
+
+/**
+ * Detect whether `label` (e.g. "CD", "∠A", "AB") is the quantity being
+ * asked about in the question text.  Used so we don't print the answer
+ * as a label on the figure.
+ *
+ * Heuristic (kept tight on purpose to avoid over-matching):
+ *   A label is "asked" iff it appears immediately adjacent to an ask-word
+ *   (before or after, with at most one short linker like "の長さを").
+ *   We reject broad "label appears anywhere near 求め" patterns because
+ *   `AB=8cm、辺CDの長さを求め` must report CD asked, AB not asked.
+ */
+export function isBeingAsked(question, label) {
+  if (!question || !label) return false
+  const q = normalizeMathText(question)
+  const esc = String(label).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const askTail = '(?:何\\s*cm|何\\s*度|何\\s*mm|何\\s*m|いくつ|いくら|求め|どれ)'
+  // label → optional linker ("の長さを" / "は" / "＝") → ask-word
+  const p1 = new RegExp(
+    `(?:辺|角|∠)?${esc}\\s*(?:の(?:長さ|大きさ|値))?\\s*[がはをに＝=]?\\s*${askTail}`
+  )
+  // ask-verb → short gap (≤6 chars, no sentence break) → label
+  const p2 = new RegExp(
+    `${askTail}[^。\\.？\\?\\n]{0,6}(?:辺|角|∠)?${esc}`
+  )
+  return p1.test(q) || p2.test(q)
+}
+
+/**
+ * Defensive post-Stage-2 sanitisation:
+ *   • clamps coordinate range to ≤8 (one-variable graphs look tiny above that)
+ *   • null-outs side / angle entries that match isBeingAsked
+ *   • re-extracts sides for quadrilaterals when Stage-2 forgot to populate them
+ * Mutates and returns the same graphData object for convenience.
+ */
+export function sanitizeGraphData(question, gd) {
+  if (!gd) return gd
+  const q = normalizeMathText(question || '')
+
+  // Coordinate range clamp.
+  if (gd.type === 'coordinate') {
+    if (typeof gd.range !== 'number' || !isFinite(gd.range) || gd.range <= 0) {
+      gd.range = 5
+    } else if (gd.range > 8) {
+      gd.range = 8
+    }
+  }
+
+  if (gd.type === 'shape' && Array.isArray(gd.labels)) {
+    // Null asked sides / angles on main shape
+    _nullAskedEdges(q, gd)
+    // Re-extract numeric sides for quads when Stage-2 left them empty
+    if ((gd.shape === 'parallelogram' || gd.shape === 'rectangle' || gd.shape === 'rhombus')
+        && (!gd.sides || gd.sides.every(s => s === null || s === undefined))) {
+      const extracted = _extractSidesFromText(q, gd.labels)
+      if (extracted.some(Boolean)) gd.sides = extracted
+    }
+    // Same treatment on secondShape (similarity/congruence pairs)
+    if (gd.secondShape && Array.isArray(gd.secondShape.labels)) {
+      _nullAskedEdges(q, gd.secondShape)
+    }
+  }
+
+  return gd
+}
+
+function _nullAskedEdges(q, shape) {
+  const labels = shape.labels || []
+  const n = labels.length
+  if (Array.isArray(shape.sides) && shape.sides.length === n) {
+    shape.sides = shape.sides.map((s, i) => {
+      if (s === null || s === undefined) return s
+      const a = labels[i], b = labels[(i + 1) % n]
+      if (isBeingAsked(q, `${a}${b}`) || isBeingAsked(q, `${b}${a}`)) return null
+      return s
+    })
+  }
+  if (Array.isArray(shape.angles) && shape.angles.length === n) {
+    shape.angles = shape.angles.map((a, i) => {
+      if (a === null || a === undefined) return a
+      const v = labels[i]
+      if (isBeingAsked(q, `∠${v}`) || isBeingAsked(q, v)) return null
+      return a
+    })
+  }
+}
+
+function _extractSidesFromText(q, labels) {
+  const n = labels.length
+  const out = []
+  for (let i = 0; i < n; i++) {
+    const a = labels[i], b = labels[(i + 1) % n]
+    const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    // Accept "AB = 5cm", "辺ABの長さは5cm", "ABは 5 cm" etc. Also BA ordering.
+    const re = new RegExp(
+      `(?:辺)?(?:${esc(a)}${esc(b)}|${esc(b)}${esc(a)})` +
+      `\\s*(?:の(?:長さ|値))?\\s*(?:[=＝がは]|\\bis\\b)\\s*` +
+      `(\\d+(?:\\.\\d+)?)\\s*(cm|mm|m|km)?`
+    )
+    const m = q.match(re)
+    if (m) {
+      const pair = `${a}${b}`
+      if (isBeingAsked(q, pair) || isBeingAsked(q, `${b}${a}`)) {
+        out.push(null)
+      } else {
+        out.push(`${m[1]}${m[2] || 'cm'}`)
+      }
+    } else {
+      out.push(null)
+    }
+  }
+  return out
+}
+
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -305,8 +445,26 @@ export default async function handler(req, res) {
 
   // ── Debug-force branch (non-prod / opt-in) ──
   // Testers can force a specific solver problemType to verify coverage.
-  // Also accepted via ?forceProblemType=... (query string fallback).
-  const forcedType = debug_force_problem_type || (req.query && req.query.forceProblemType)
+  // Accepted via (in priority order):
+  //   1. request body: debug_force_problem_type
+  //   2. request body: forceProblemType (camel-case alias — easier from frontend)
+  //   3. query string: ?forceProblemType=...
+  //      — parsed even when the URL contains no explicit `req.query` handling
+  function parseQueryForceType(url) {
+    try {
+      if (!url) return null
+      const idx = url.indexOf('?')
+      if (idx === -1) return null
+      const qs = new URLSearchParams(url.slice(idx + 1))
+      return qs.get('forceProblemType') || qs.get('debug_force_problem_type')
+    } catch { return null }
+  }
+  const forcedType =
+    debug_force_problem_type ||
+    req.body?.forceProblemType ||
+    (req.query && (req.query.forceProblemType || req.query.debug_force_problem_type)) ||
+    parseQueryForceType(req.url)
+
   if (forcedType) {
     if (!isDebugForceAllowed()) {
       return res.status(403).json({ error: 'debug_force_disabled_in_production' })
@@ -317,6 +475,8 @@ export default async function handler(req, res) {
         availableTypes: Object.keys(GENERATORS),
       })
     }
+    // Debug force bypasses unit_problem_type_mismatch (testers are intentionally
+    // requesting a specific type regardless of unit).
     const forcedQuestions = generateSolverQuestions([forcedType], count)
     console.log('[Solver] DEBUG FORCE path:', { forcedType, count: forcedQuestions.length })
     return res.status(200).json({
@@ -326,6 +486,7 @@ export default async function handler(req, res) {
         stage2: 'not_applicable',
         classification: 'debug_force',
         generators: [forcedType],
+        problemTypes: forcedQuestions.map(q => q._solverSpec?.problemType),
         forced_problem_type: forcedType,
         extractionApplied: 0,
         extractionTotal: forcedQuestions.length,
@@ -342,7 +503,9 @@ export default async function handler(req, res) {
 
   if (subject === 'math' && classification.category === 'solver_required') {
     try {
-      const solverQuestions = generateSolverQuestions(classification.generators, count)
+      const solverQuestions = generateSolverQuestions(classification.generators, count, {
+        unitTitle, subUnitTitle,
+      })
       if (solverQuestions.length >= count) {
         console.log('[Solver] solver-first path used:', {
           unitTitle, subUnitTitle, generators: classification.generators, count: solverQuestions.length,
@@ -386,10 +549,13 @@ export default async function handler(req, res) {
 - 辺の長さを記述する際は「AB = 5cm」の形式を使うこと（図は自動生成されます）。
 - 描画できる図形: 三角形、長方形、平行四辺形、ひし形、円、一次関数グラフ(y = ax + b)、二次関数グラフ(y = ax²、y = ax² + bx + c)、数直線
 - 描画できない図形（展開図、立体、回転体、おうぎ形等）の問題は出題しないこと。
-- 【出題バランス】${count}問中、必ず以下を含めること：
-  ・図形問題（三角形/四角形/円のいずれか）を2問以上
-  ・座標グラフ(y = ax + b形式)または数直線の問題を1問以上
-  ・純粋な計算問題を1-2問` : ''
+- 【出題バランスの必須ルール】${count}問中、必ず以下の内訳を守ること（単元内容と関係があれば優先、関係なくても無理に出す）：
+  ・三角形の問題を1問以上
+  ・四角形（長方形/平行四辺形/ひし形のいずれか）の問題を1問以上（ただし単元が三角形専用の場合は除外）
+  ・円の問題を1問以上（${count} >= 4 の場合、または単元が円・関数・図形系の場合）
+  ・座標グラフ(y = ax + b または y = ax²)または数直線の問題を1問以上
+  ・純粋な計算問題を1-2問
+- 全角マイナス記号「−」は使わず、半角「-」を使用すること（例: y = -3x + 6）。` : ''
 
   const isSummaryTest = subUnitTitle === 'まとめテスト'
   const summaryInstruction = isSummaryTest ? `
@@ -470,8 +636,14 @@ ${summaryInstruction}
 
     let questions = JSON.parse(jsonMatch[0])
 
-    // === Post-Stage-1: Explanation sanitisation + correctIndex repair ===
+    // === Post-Stage-1: Text normalisation + explanation sanitisation + correctIndex repair ===
     for (const q of questions) {
+      // Normalise full-width minus / equals / paren so downstream regex +
+      // Stage-2 LLM see clean ASCII (fixes 'y = −3x + 6' rendering failure).
+      if (q.question) q.question = normalizeMathText(q.question)
+      if (Array.isArray(q.choices)) q.choices = q.choices.map(normalizeMathText)
+      if (typeof q.correctAnswer === 'string') q.correctAnswer = normalizeMathText(q.correctAnswer)
+      if (q.explanation) q.explanation = normalizeMathText(q.explanation)
       // Remove contaminated sentences (cross-question leakage)
       if (q.explanation) {
         q.explanation = removeContaminatedSentences(q.question, q.choices, q.explanation)
@@ -568,6 +740,9 @@ ${summaryInstruction}
               if (gd.type === 'shape' && gd.labels && gd.sides) {
                 gd.sides = fixSideOrder(questions[idx].question, gd.labels, gd.sides)
               }
+              // Defensive sanitisation: clamp range, null-out asked sides/angles,
+              // re-extract missing quadrilateral sides.
+              sanitizeGraphData(questions[idx].question, gd)
               questions[idx].graphData = gd
               appliedCount++
             }

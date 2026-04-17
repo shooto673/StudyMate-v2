@@ -7,6 +7,10 @@ import graphDataShapeTest from './graphDataShape.test.mjs'
 import explanationIntegrityTest from './explanationIntegrity.test.mjs'
 import solverAndValidatorTest from './solverAndValidator.test.mjs'
 import coverageAndForceTest from './coverageAndForce.test.mjs'
+import unitMatrixTest from './unitMatrix.test.mjs'
+import handlerForceTest from './handlerForce.test.mjs'
+import parabolaLabelsTest from './parabolaLabels.test.mjs'
+import figureFixesTest from './figureFixes.test.mjs'
 
 const suites = [
   { name: 'schema', cases: schemaTest },
@@ -16,6 +20,10 @@ const suites = [
   { name: 'explanationIntegrity', cases: explanationIntegrityTest },
   { name: 'solverAndValidator', cases: solverAndValidatorTest },
   { name: 'coverageAndForce', cases: coverageAndForceTest },
+  { name: 'unitMatrix', cases: unitMatrixTest },
+  { name: 'handlerForce', cases: handlerForceTest },
+  { name: 'parabolaLabels', cases: parabolaLabelsTest },
+  { name: 'figureFixes', cases: figureFixesTest },
 ]
 
 let passed = 0

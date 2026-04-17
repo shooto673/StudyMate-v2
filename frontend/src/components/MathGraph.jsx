@@ -7,7 +7,7 @@ import {
   dynamicSideOffsets,
 } from '../lib/graphGeometry'
 
-const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle']
+const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle', 'parallel_lines']
 const SUPPORTED_TYPES = ['shape', 'coordinate', 'numberline']
 const IS_DEV = typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.DEV
 
@@ -76,7 +76,10 @@ export default function MathGraph({ graphData }) {
   const cy = H / 2
 
   if (graphData.type === 'coordinate') {
-    const range = graphData.range || 5
+    // Clamp defensively: backend already caps at 8, but if stale data slips
+    // through (e.g. pre-deploy cache) keep the plot legible.
+    const rawRange = graphData.range || 5
+    const range = Math.max(3, Math.min(rawRange, 8))
     const scale = (Math.min(W, H) - pad * 2) / (range * 2)
     const toX = (x) => cx + x * scale
     const toY = (y) => cy - y * scale
@@ -130,51 +133,64 @@ export default function MathGraph({ graphData }) {
           )
         })}
         {/* Quadratic curves (parabolas) */}
-        {(graphData.curves || []).map((curve, i) => {
-          const colors = ['#6C63FF', '#FF6B6B', '#51CF66', '#FF922B']
-          const color = colors[(graphData.lines?.length || 0) + i % colors.length]
-          const { a, b: bCoeff = 0, c: cCoeff = 0 } = curve
-          if (!a || a === 0) return null
-          // Sample points across the visible range
-          const steps = 200
-          const pts = []
-          let inSegment = false
-          for (let s = 0; s <= steps; s++) {
-            const xVal = -range + (2 * range * s) / steps
-            const yVal = a * xVal * xVal + bCoeff * xVal + cCoeff
-            if (Math.abs(yVal) <= range * 2) {
-              const px = toX(xVal)
-              const py = toY(yVal)
-              if (!inSegment) {
-                pts.push(`M ${px},${py}`)
-                inSegment = true
-              } else {
-                pts.push(`L ${px},${py}`)
-              }
-            } else {
-              inSegment = false
+        {(() => {
+          const curves = graphData.curves || []
+          // Pre-compute label anchors so we can spread them along the curves
+          // when multiple parabolas share the same vertex (e.g. y=-3x² and y=-x²).
+          // Strategy:
+          //   - Pick a different sampling x for each curve, spaced across [-range, range]
+          //     so labels end up at visibly different (x, y) positions.
+          //   - Offset in y by curve index to guarantee no overlap even on identical x.
+          const n = curves.length
+          const labelAnchors = curves.map((curve, i) => {
+            const { a, b: bCoeff = 0, c: cCoeff = 0 } = curve
+            if (!a || a === 0) return null
+            // Evenly spaced sample x-values; 1 curve → 0, 2 curves → ±0.6R, etc.
+            const span = range * 0.7
+            const t = n === 1 ? 0 : (i / (n - 1)) * 2 - 1  // -1..+1
+            const sampleX = t * span
+            const sampleY = a * sampleX * sampleX + bCoeff * sampleX + cCoeff
+            return { x: sampleX, y: sampleY }
+          })
+          return curves.map((curve, i) => {
+            const colors = ['#6C63FF', '#FF6B6B', '#51CF66', '#FF922B']
+            const color = colors[((graphData.lines?.length || 0) + i) % colors.length]
+            const { a, b: bCoeff = 0, c: cCoeff = 0 } = curve
+            if (!a || a === 0) return null
+            // Sample points across the visible range
+            const steps = 200
+            const pts = []
+            let inSegment = false
+            for (let s = 0; s <= steps; s++) {
+              const xVal = -range + (2 * range * s) / steps
+              const yVal = a * xVal * xVal + bCoeff * xVal + cCoeff
+              if (Math.abs(yVal) <= range * 2) {
+                const px = toX(xVal)
+                const py = toY(yVal)
+                if (!inSegment) { pts.push(`M ${px},${py}`); inSegment = true }
+                else { pts.push(`L ${px},${py}`) }
+              } else { inSegment = false }
             }
-          }
-          const pathData = pts.join(' ')
-          // Label near vertex
-          const vertexX = -bCoeff / (2 * a)
-          const vertexY = a * vertexX * vertexX + bCoeff * vertexX + cCoeff
-          const labelVisible = Math.abs(vertexX) <= range && Math.abs(vertexY) <= range
-          return (
-            <g key={`curve-${i}`}>
-              <path d={pathData} fill="none" stroke={color} strokeWidth={2.5}
-                strokeLinecap="round" clipPath="url(#graphClip)" />
-              {curve.label && labelVisible && (
-                <text x={toX(vertexX) + 8} y={toY(vertexY) - 10}
-                  fontSize={10} fill={color} fontWeight={700}>{curve.label}</text>
-              )}
-              {curve.label && !labelVisible && (
-                <text x={toX(0) + 8} y={toY(cCoeff) - 10}
-                  fontSize={10} fill={color} fontWeight={700}>{curve.label}</text>
-              )}
-            </g>
-          )
-        })}
+            const pathData = pts.join(' ')
+            const anchor = labelAnchors[i]
+            const anchorInView = anchor && Math.abs(anchor.x) <= range && Math.abs(anchor.y) <= range
+            // Fallback: place at top or bottom of visible area
+            const fallbackX = toX(0) + 8
+            const fallbackY = a < 0 ? toY(range - 0.5) : toY(-range + 0.5)
+            const lx = anchorInView ? toX(anchor.x) + 8 : fallbackX
+            const ly = anchorInView ? toY(anchor.y) - 6 - i * 12 : fallbackY - i * 12
+            return (
+              <g key={`curve-${i}`}>
+                <path d={pathData} fill="none" stroke={color} strokeWidth={2.5}
+                  strokeLinecap="round" clipPath="url(#graphClip)" />
+                {curve.label && (
+                  <text x={lx} y={ly} fontSize={10} fill={color} fontWeight={700}
+                    paintOrder="stroke" stroke="#fff" strokeWidth={3}>{curve.label}</text>
+                )}
+              </g>
+            )
+          })
+        })()}
         {/* Points */}
         {(graphData.points || []).map((pt, i) => (
           <g key={`pt-${i}`}>
@@ -394,6 +410,75 @@ export default function MathGraph({ graphData }) {
               {!graphData.sides && graphData.height && (
                 <text x={rx + rw + 8} y={cy}
                   fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="start">{graphData.height}</text>
+              )}
+            </g>
+          )
+        })()}
+
+        {/* Parallel lines with transversal — used for 平行線と比 (ratio_length) */}
+        {graphData.shape === 'parallel_lines' && (() => {
+          const x1 = pad, x2 = W - pad
+          // Three evenly-spaced horizontal lines
+          const yTop = pad + 20
+          const yMid = H / 2
+          const yBot = H - pad - 20
+          const lines = [
+            { y: yTop, label: 'l' },
+            { y: yMid, label: 'm' },
+            { y: yBot, label: 'n' },
+          ]
+          // Slanted transversal — angled so each intersection sits at a different x
+          const transTopX = W * 0.35
+          const transBotX = W * 0.65
+          // Lerp helper
+          const lerp = (a, b, t) => a + (b - a) * t
+          const tMid = (yMid - yTop) / (yBot - yTop)
+          const transMidX = lerp(transTopX, transBotX, tMid)
+          const pts = [
+            { x: transTopX, y: yTop, label: graphData.labels?.[0] || 'A' },
+            { x: transMidX, y: yMid, label: graphData.labels?.[1] || 'B' },
+            { x: transBotX, y: yBot, label: graphData.labels?.[2] || 'C' },
+          ]
+          return (
+            <g>
+              {/* Parallel lines */}
+              {lines.map((ln, i) => (
+                <g key={`line-${i}`}>
+                  <line x1={x1} y1={ln.y} x2={x2} y2={ln.y}
+                    stroke="#6C63FF" strokeWidth={2} />
+                  <text x={x2 + 6} y={ln.y + 4} fontSize={11} fill="#6C63FF"
+                    fontWeight={700}>{ln.label}</text>
+                </g>
+              ))}
+              {/* Transversal */}
+              <line x1={transTopX} y1={yTop} x2={transBotX} y2={yBot}
+                stroke="#FF922B" strokeWidth={2.2} />
+              {/* Intersection labels */}
+              {pts.map((p, i) => (
+                <g key={`pt-${i}`}>
+                  <circle cx={p.x} cy={p.y} r={4} fill="#1a1a2e" />
+                  <text x={p.x - 12} y={p.y + 4} fontSize={12}
+                    fill="#1a1a2e" fontWeight={700}>{p.label}</text>
+                </g>
+              ))}
+              {/* Segment labels (AB / BC) */}
+              {graphData.segments && graphData.segments[0] && (
+                <text x={(pts[0].x + pts[1].x) / 2 + 10}
+                  y={(pts[0].y + pts[1].y) / 2}
+                  fontSize={11} fill="#FF922B" fontWeight={700}>
+                  {graphData.segments[0]}
+                </text>
+              )}
+              {graphData.segments && graphData.segments[1] && (
+                <text x={(pts[1].x + pts[2].x) / 2 + 10}
+                  y={(pts[1].y + pts[2].y) / 2}
+                  fontSize={11} fill="#FF922B" fontWeight={700}>
+                  {graphData.segments[1]}
+                </text>
+              )}
+              {graphData.ratio && (
+                <text x={pad} y={H - 8} fontSize={11} fill="#6b7280"
+                  fontWeight={600}>AB:BC = {graphData.ratio}</text>
               )}
             </g>
           )

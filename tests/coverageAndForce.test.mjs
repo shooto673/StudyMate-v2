@@ -8,6 +8,7 @@ import { GENERATORS } from '../lib/mathSolvers.js'
 import { validateQuestionObject } from '../lib/questionValidator.js'
 
 // Mirrors api/generate.js::generateSolverQuestions (kept in sync for testing).
+// Generators now attach graphData internally via withGraph wrapper.
 function generateSolverQuestions(generators, count) {
   const out = []
   let guard = 0
@@ -17,7 +18,11 @@ function generateSolverQuestions(generators, count) {
     let q
     try { q = gen() } catch { continue }
     const v = validateQuestionObject(q, { problemType: q.spec?.problemType })
-    if (!v.ok) continue
+    if (!v.ok) {
+      // eslint-disable-next-line no-console
+      console.warn('[test helper] rejected:', v.errors, q.spec?.problemType)
+      continue
+    }
     out.push({ ...q })
   }
   return out
