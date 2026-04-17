@@ -6,6 +6,7 @@ import validatorTest from './validator.test.mjs'
 import graphDataShapeTest from './graphDataShape.test.mjs'
 import explanationIntegrityTest from './explanationIntegrity.test.mjs'
 import solverAndValidatorTest from './solverAndValidator.test.mjs'
+import coverageAndForceTest from './coverageAndForce.test.mjs'
 
 const suites = [
   { name: 'schema', cases: schemaTest },
@@ -14,6 +15,7 @@ const suites = [
   { name: 'graphDataShape', cases: graphDataShapeTest },
   { name: 'explanationIntegrity', cases: explanationIntegrityTest },
   { name: 'solverAndValidator', cases: solverAndValidatorTest },
+  { name: 'coverageAndForce', cases: coverageAndForceTest },
 ]
 
 let passed = 0

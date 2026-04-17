@@ -8,9 +8,12 @@ import { validateQuestionObject } from '../lib/questionValidator.js'
 
 /**
  * Solver-first generator. Produces `count` questions for the given
- * classification entirely from deterministic solvers — no LLM involvement.
+ * generator list entirely from deterministic solvers — no LLM involvement.
  * Each question is independently generated (no shared buffer), which
  * physically prevents cross-question explanation contamination.
+ *
+ * Rotation: round-robins through `generators` so every listed problemType
+ * is guaranteed to appear at least ⌊count / generators.length⌋ times.
  */
 function generateSolverQuestions(generators, count) {
   const out = []
@@ -38,6 +41,19 @@ function generateSolverQuestions(generators, count) {
     })
   }
   return out
+}
+
+/**
+ * Whether the current runtime allows `debug_force_problem_type`.
+ * Enabled when:
+ *   - process.env.ALLOW_DEBUG_FORCE === 'true', OR
+ *   - process.env.VERCEL_ENV !== 'production' (preview / development / local)
+ * Forcing only picks a solver-first problemType; no security surface expansion.
+ */
+function isDebugForceAllowed() {
+  if (String(process.env.ALLOW_DEBUG_FORCE || '').toLowerCase() === 'true') return true
+  const env = String(process.env.VERCEL_ENV || '').toLowerCase()
+  return env !== 'production'
 }
 
 // JSON Schema for GPT-4o-mini Structured Outputs
@@ -278,7 +294,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
 
-  const { unitTitle, subUnitTitle, subject, grade, count = 5 } = req.body
+  const { unitTitle, subUnitTitle, subject, grade, count = 5, debug_force_problem_type } = req.body
 
   if (!unitTitle || !subUnitTitle || !subject) {
     return res.status(400).json({ error: 'Missing required fields' })
@@ -286,6 +302,36 @@ export default async function handler(req, res) {
 
   const gradeLabel = { j1: '中学1年', j2: '中学2年', j3: '中学3年' }[grade] || '中学1年'
   const subjectLabel = subject === 'english' ? '英語' : '数学'
+
+  // ── Debug-force branch (non-prod / opt-in) ──
+  // Testers can force a specific solver problemType to verify coverage.
+  // Also accepted via ?forceProblemType=... (query string fallback).
+  const forcedType = debug_force_problem_type || (req.query && req.query.forceProblemType)
+  if (forcedType) {
+    if (!isDebugForceAllowed()) {
+      return res.status(403).json({ error: 'debug_force_disabled_in_production' })
+    }
+    if (!GENERATORS[forcedType]) {
+      return res.status(400).json({
+        error: 'unknown_problem_type',
+        availableTypes: Object.keys(GENERATORS),
+      })
+    }
+    const forcedQuestions = generateSolverQuestions([forcedType], count)
+    console.log('[Solver] DEBUG FORCE path:', { forcedType, count: forcedQuestions.length })
+    return res.status(200).json({
+      questions: forcedQuestions,
+      _meta: {
+        stage1: 'solver',
+        stage2: 'not_applicable',
+        classification: 'debug_force',
+        generators: [forcedType],
+        forced_problem_type: forcedType,
+        extractionApplied: 0,
+        extractionTotal: forcedQuestions.length,
+      },
+    })
+  }
 
   // ── Solver-first branch for high-risk math units ──
   // Classify every math request and, if it matches a solver-required pattern,
@@ -308,6 +354,8 @@ export default async function handler(req, res) {
             stage2: 'not_applicable',
             classification: classification.category,
             generators: classification.generators,
+            problemTypes: solverQuestions.map(q => q._solverSpec?.problemType),
+            forced_problem_type: null,
             extractionApplied: 0,
             extractionTotal: solverQuestions.length,
           },
