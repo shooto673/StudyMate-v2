@@ -6,12 +6,29 @@ const API_BASE = import.meta.env.PROD
 
 const IS_DEV = import.meta.env.DEV
 
-export async function fetchQuizQuestions({ unitTitle, subUnitTitle, subject, grade, count = 5 }) {
+export async function fetchQuizQuestions({ unitTitle, subUnitTitle, subject, grade, count = 5, forceProblemType = null }) {
   try {
-    const res = await fetch(`${API_BASE}/generate`, {
+    // Accept either a forceProblemType argument OR a URL query string.
+    // Forwarded to the API as both query param (easier logging) and body param.
+    const urlForce = (() => {
+      try {
+        const sp = new URLSearchParams(window.location.search)
+        return sp.get('forceProblemType') || sp.get('debug_force_problem_type')
+      } catch { return null }
+    })()
+    const effectiveForce = forceProblemType || urlForce
+
+    const url = effectiveForce
+      ? `${API_BASE}/generate?forceProblemType=${encodeURIComponent(effectiveForce)}`
+      : `${API_BASE}/generate`
+
+    const body = { unitTitle, subUnitTitle, subject, grade, count }
+    if (effectiveForce) body.debug_force_problem_type = effectiveForce
+
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ unitTitle, subUnitTitle, subject, grade, count }),
+      body: JSON.stringify(body),
     })
 
     if (!res.ok) {
@@ -63,9 +80,12 @@ export async function fetchQuizQuestions({ unitTitle, subUnitTitle, subject, gra
         graphData,
         // Dev-only diagnostic so UI can show a badge when we dropped data
         _graphRejection: rejectionReason,
+        _problemType: q._solverSpec?.problemType || null,
       }
     })
 
+    // Surface meta on the returned array (non-enumerable-ish; consumers can read)
+    questions._meta = data._meta || null
     return questions
   } catch (err) {
     console.error('[QuizAPI] Failed to fetch quiz questions:', err)

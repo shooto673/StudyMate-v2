@@ -2,7 +2,7 @@
 // Kept as plain JS so it can be unit-tested without a bundler or React runtime.
 
 export const SUPPORTED_TYPES = ['coordinate', 'numberline', 'shape']
-export const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle']
+export const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle', 'parallel_lines']
 
 const LABEL_PATTERNS = [
   // 「A」「い」style

@@ -11,8 +11,10 @@ import unitMatrixTest from './unitMatrix.test.mjs'
 import handlerForceTest from './handlerForce.test.mjs'
 import parabolaLabelsTest from './parabolaLabels.test.mjs'
 import figureFixesTest from './figureFixes.test.mjs'
+import criticalImportsTest from './criticalImports.test.mjs'
 
 const suites = [
+  { name: 'criticalImports', cases: criticalImportsTest }, // FIRST — if this fails, nothing else matters
   { name: 'schema', cases: schemaTest },
   { name: 'geometry', cases: geometryTest },
   { name: 'validator', cases: validatorTest },
