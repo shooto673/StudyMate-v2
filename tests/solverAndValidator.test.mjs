@@ -298,14 +298,16 @@ export default [
 
   // ── Registry smoke test ──────────────────────────────────────────────
   {
-    name: 'GENERATORS registry has all 5 solver types',
+    name: 'GENERATORS registry has all solver types (inc. hybrid templates)',
     fn: async () => {
       const keys = Object.keys(GENERATORS).sort()
       assert.deepStrictEqual(keys, [
+        'cyclic_quadrilateral',
         'exterior_angle',
         'ratio_length',
         'ratio_simplify',
         'similarity_ratio_length',
+        'thales_theorem',
         'triangle_angle_sum',
       ])
     },

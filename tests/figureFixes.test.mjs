@@ -478,4 +478,160 @@ export default [
       assert.ok(gd.range <= 8, `range should still cap at 8, got ${gd.range}`)
     },
   },
+
+  // ── Hybrid templates: thales_theorem (タレスの定理) ───────────────────
+  // These replace the LLM path for the "円周角の定理" subunit so the figure
+  // ALWAYS shows AB passing through O as a diameter and a right-angle mark
+  // at C. The tester's earlier bug (AB not drawn as a diameter) is structural:
+  // it cannot recur once these template-driven questions are used.
+  {
+    name: 'solveThalesTheorem: ∠BAC=30° → ∠ABC=60° (タレス＋内角の和)',
+    fn: async () => {
+      const { solveThalesTheorem } = await import('../lib/mathSolvers.js')
+      const { answer } = solveThalesTheorem({ angleBAC: 30 })
+      assert.strictEqual(answer, 60)
+    },
+  },
+  {
+    name: 'solveThalesTheorem rejects degenerate angles',
+    fn: async () => {
+      const { solveThalesTheorem } = await import('../lib/mathSolvers.js')
+      assert.throws(() => solveThalesTheorem({ angleBAC: 0 }))
+      assert.throws(() => solveThalesTheorem({ angleBAC: 90 }))
+      assert.throws(() => solveThalesTheorem({ angleBAC: NaN }))
+    },
+  },
+  {
+    name: 'buildGraphFromSpec(thales_theorem): A and B are diametrically opposite through O',
+    fn: async () => {
+      const gd = buildGraphFromSpec({ problemType: 'thales_theorem', given: { angleBAC: 25 } })
+      assert.strictEqual(gd.shape, 'circle')
+      assert.strictEqual(gd.center, 'O')
+      assert.deepStrictEqual(gd.diameter, ['A', 'B'])
+      const A = gd.pointsOnCircle.find(p => p.label === 'A')
+      const B = gd.pointsOnCircle.find(p => p.label === 'B')
+      assert.ok(A && B, 'A and B must be present on circle')
+      const diff = ((A.angle - B.angle) % 360 + 360) % 360
+      assert.strictEqual(diff, 180, `A and B must be 180° apart, got ${diff}°`)
+      assert.strictEqual(gd.rightAngleAt, 'C')
+    },
+  },
+  {
+    name: 'buildGraphFromSpec(thales_theorem): chords A-C and B-C are both drawn',
+    fn: async () => {
+      const gd = buildGraphFromSpec({ problemType: 'thales_theorem', given: { angleBAC: 25 } })
+      assert.ok(Array.isArray(gd.chords) && gd.chords.length === 2)
+      const pairs = gd.chords.map(c => [c.from, c.to].sort().join('-')).sort()
+      assert.deepStrictEqual(pairs, ['A-C', 'B-C'])
+    },
+  },
+  {
+    name: 'generateThalesTheorem produces a valid solver question with correct choices',
+    fn: async () => {
+      const { generateThalesTheorem } = await import('../lib/mathSolvers.js')
+      const q = generateThalesTheorem(() => 0.3)
+      assert.ok(q.question.includes('直径'), 'question must mention 直径')
+      assert.ok(q.graphData && q.graphData.diameter, 'graphData must include diameter spec')
+      assert.strictEqual(q.graphData.rightAngleAt, 'C')
+      assert.ok(q.choices.includes(q.correctAnswer), 'correctAnswer must be in choices')
+    },
+  },
+
+  // ── Hybrid templates: cyclic_quadrilateral (内接四角形) ──────────────
+  // The tester's other bug (内接四角形 rendered as a rectangle ignoring
+  // ∠ABC=68°) is also structural — a fixed-geometry renderer cannot respect
+  // the given angle. The solver-computed vertex angles now satisfy the
+  // inscribed-angle theorem by construction.
+  {
+    name: 'solveCyclicQuadrilateral: ∠ABC=68° → ∠ADC=112°',
+    fn: async () => {
+      const { solveCyclicQuadrilateral } = await import('../lib/mathSolvers.js')
+      const { answer } = solveCyclicQuadrilateral({ angleABC: 68 })
+      assert.strictEqual(answer, 112)
+    },
+  },
+  {
+    name: 'solveCyclicQuadrilateral rejects out-of-range angles',
+    fn: async () => {
+      const { solveCyclicQuadrilateral } = await import('../lib/mathSolvers.js')
+      assert.throws(() => solveCyclicQuadrilateral({ angleABC: 10 }))
+      assert.throws(() => solveCyclicQuadrilateral({ angleABC: 170 }))
+    },
+  },
+  {
+    name: 'buildGraphFromSpec(cyclic_quadrilateral): vertices satisfy ∠ABC = given angle',
+    fn: async () => {
+      const gd = buildGraphFromSpec({ problemType: 'cyclic_quadrilateral', given: { angleABC: 68 } })
+      assert.strictEqual(gd.shape, 'circle')
+      assert.deepStrictEqual(gd.polygon, ['A', 'B', 'C', 'D'])
+      const getA = lbl => gd.pointsOnCircle.find(p => p.label === lbl).angle
+      const aA = getA('A'), aC = getA('C')
+      // Inscribed-angle theorem: ∠ABC = (arc AC not containing B) / 2
+      // With A=0, C=224: arc not through B goes 0→−68→−112→...→−136 = 136°
+      const arcThroughB = ((aC - aA) % 360 + 360) % 360
+      const arcNotB = 360 - arcThroughB
+      assert.strictEqual(arcNotB / 2, 68, `∠ABC should be 68°, got ${arcNotB / 2}`)
+    },
+  },
+  {
+    name: 'buildGraphFromSpec(cyclic_quadrilateral): A, B, C, D are in CCW order on circle',
+    fn: async () => {
+      const gd = buildGraphFromSpec({ problemType: 'cyclic_quadrilateral', given: { angleABC: 68 } })
+      const getA = lbl => gd.pointsOnCircle.find(p => p.label === lbl).angle
+      const aA = getA('A'), aB = getA('B'), aC = getA('C'), aD = getA('D')
+      // CCW order 0 < B < C < D < 360 (with A at 0°)
+      assert.strictEqual(aA, 0)
+      assert.ok(aB > aA && aB < aC, `B(${aB}) should be between A(${aA}) and C(${aC})`)
+      assert.ok(aD > aC && aD < 360, `D(${aD}) should be between C(${aC}) and 360°`)
+    },
+  },
+  {
+    name: 'generateCyclicQuadrilateral produces a valid solver question',
+    fn: async () => {
+      const { generateCyclicQuadrilateral } = await import('../lib/mathSolvers.js')
+      const q = generateCyclicQuadrilateral(() => 0.3)
+      assert.ok(q.question.includes('内接'), 'question must mention 内接')
+      assert.strictEqual(q.graphData.polygon.length, 4)
+      assert.ok(q.choices.includes(q.correctAnswer))
+    },
+  },
+
+  // ── classifier wiring: 円周角の定理 → hybrid templates ──────────────
+  {
+    name: 'classifyUnit routes 円周角の定理 to thales + cyclic quadrilateral solvers',
+    fn: async () => {
+      const { classifyUnit } = await import('../lib/classifier.js')
+      const r = classifyUnit('円', '円周角の定理', 'math')
+      assert.strictEqual(r.category, 'solver_required')
+      assert.ok(r.generators.includes('thales_theorem'))
+      assert.ok(r.generators.includes('cyclic_quadrilateral'))
+    },
+  },
+  {
+    name: 'classifyUnit regex fallback: parent unit "円" with unknown subunit still routes correctly',
+    fn: async () => {
+      const { classifyUnit } = await import('../lib/classifier.js')
+      const r = classifyUnit('円の性質', '円周角', 'math')
+      assert.strictEqual(r.category, 'solver_required')
+      assert.ok(r.generators.includes('thales_theorem'))
+    },
+  },
+
+  // ── Validator accepts the new circle graphData shape ───────────────
+  {
+    name: 'graphValidator accepts thales_theorem graphData',
+    fn: async () => {
+      const gd = buildGraphFromSpec({ problemType: 'thales_theorem', given: { angleBAC: 30 } })
+      const v = validateGraphData('円Oの直径をABとする。円周上に点Cをとるとき、∠BAC=30°', gd)
+      assert.ok(v && !v.rejected, `rejected: ${v?.reason}`)
+    },
+  },
+  {
+    name: 'graphValidator accepts cyclic_quadrilateral graphData',
+    fn: async () => {
+      const gd = buildGraphFromSpec({ problemType: 'cyclic_quadrilateral', given: { angleABC: 68 } })
+      const v = validateGraphData('円に内接する四角形ABCDがあり、∠ABC=68°', gd)
+      assert.ok(v && !v.rejected, `rejected: ${v?.reason}`)
+    },
+  },
 ]

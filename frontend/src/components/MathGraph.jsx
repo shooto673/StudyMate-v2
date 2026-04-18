@@ -564,26 +564,107 @@ export default function MathGraph({ graphData }) {
           )
         })()}
 
-        {/* Circle — now with optional center label (O) and labelled circumference points */}
+        {/* Circle — supports diameter, multiple chords, inscribed polygon,
+             right-angle mark, and per-vertex angle labels (for 円周角の定理) */}
         {graphData.shape === 'circle' && (() => {
           const r = 70
           const circlePoints = distributePointsOnCircle(
             Array.isArray(graphData.pointsOnCircle) ? graphData.pointsOnCircle : [],
             cx, cy, r,
           )
-          // Resolve chord endpoints by looking up labels in circlePoints
+          const byLabel = {}
+          for (const p of circlePoints) byLabel[p.label] = p
+
+          // Legacy single chord
           let chordLine = null
           if (graphData.chord && graphData.chord.from && graphData.chord.to) {
-            const pFrom = circlePoints.find(p => p.label === graphData.chord.from)
-            const pTo = circlePoints.find(p => p.label === graphData.chord.to)
+            const pFrom = byLabel[graphData.chord.from]
+            const pTo = byLabel[graphData.chord.to]
             if (pFrom && pTo) chordLine = { x1: pFrom.x, y1: pFrom.y, x2: pTo.x, y2: pTo.y }
           }
+
+          // Multiple chords (thales_theorem uses this for A-C, B-C)
+          const chordLines = Array.isArray(graphData.chords)
+            ? graphData.chords.map(ch => {
+              const pFrom = byLabel[ch.from]
+              const pTo = byLabel[ch.to]
+              if (!pFrom || !pTo) return null
+              return { x1: pFrom.x, y1: pFrom.y, x2: pTo.x, y2: pTo.y }
+            }).filter(Boolean)
+            : []
+
+          // Diameter: solid line through the centre connecting two labelled points
+          let diameterLine = null
+          if (Array.isArray(graphData.diameter) && graphData.diameter.length === 2) {
+            const pFrom = byLabel[graphData.diameter[0]]
+            const pTo = byLabel[graphData.diameter[1]]
+            if (pFrom && pTo) diameterLine = { x1: pFrom.x, y1: pFrom.y, x2: pTo.x, y2: pTo.y }
+          }
+
+          // Inscribed polygon (cyclic quadrilateral etc.)
+          let polygonPath = null
+          if (Array.isArray(graphData.polygon) && graphData.polygon.length >= 3) {
+            const pts = graphData.polygon.map(lbl => byLabel[lbl]).filter(Boolean)
+            if (pts.length >= 3) {
+              polygonPath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ') + ' Z'
+            }
+          }
+
+          // Right-angle mark: small square at the apex vertex, oriented along
+          // the two chord directions incident on it.
+          let rightAnglePath = null
+          if (graphData.rightAngleAt && byLabel[graphData.rightAngleAt]) {
+            const apex = byLabel[graphData.rightAngleAt]
+            const neighbors = []
+            if (Array.isArray(graphData.chords)) {
+              for (const ch of graphData.chords) {
+                if (ch.from === graphData.rightAngleAt && byLabel[ch.to]) neighbors.push(byLabel[ch.to])
+                else if (ch.to === graphData.rightAngleAt && byLabel[ch.from]) neighbors.push(byLabel[ch.from])
+              }
+            }
+            if (neighbors.length >= 2) {
+              const [n1, n2] = neighbors
+              const v1 = { x: n1.x - apex.x, y: n1.y - apex.y }
+              const v2 = { x: n2.x - apex.x, y: n2.y - apex.y }
+              const m1 = Math.hypot(v1.x, v1.y) || 1
+              const m2 = Math.hypot(v2.x, v2.y) || 1
+              const u1 = { x: v1.x / m1, y: v1.y / m1 }
+              const u2 = { x: v2.x / m2, y: v2.y / m2 }
+              const size = 10
+              const p1 = { x: apex.x + size * u1.x, y: apex.y + size * u1.y }
+              const p2 = { x: apex.x + size * (u1.x + u2.x), y: apex.y + size * (u1.y + u2.y) }
+              const p3 = { x: apex.x + size * u2.x, y: apex.y + size * u2.y }
+              rightAnglePath = `M${p1.x},${p1.y} L${p2.x},${p2.y} L${p3.x},${p3.y}`
+            }
+          }
+
+          // Angle labels: display the given angle next to its apex, pushed
+          // slightly inward from the vertex.
+          const angleLabelElems = []
+          if (Array.isArray(graphData.angleLabels)) {
+            for (const al of graphData.angleLabels) {
+              const apex = byLabel[al.at]
+              if (!apex || !al.value) continue
+              // push toward centre so the text sits inside the polygon/triangle
+              const dx = cx - apex.x
+              const dy = cy - apex.y
+              const m = Math.hypot(dx, dy) || 1
+              const tx = apex.x + (dx / m) * 22
+              const ty = apex.y + (dy / m) * 22
+              angleLabelElems.push(
+                <text key={`al-${al.at}`} x={tx} y={ty + 4}
+                  fontSize={11} fill="#6C63FF" fontWeight={700} textAnchor="middle">
+                  {al.value}
+                </text>
+              )
+            }
+          }
+
           return (
             <g>
               <circle cx={cx} cy={cy} r={r} fill="none" stroke="#6C63FF" strokeWidth={2.5} />
-              {/* Radius indicator (existing behavior, drawn to +x axis so it doesn't
-                  collide with a labelled point unless there's one at 0°) */}
-              {graphData.radius && (
+              {/* Radius indicator (legacy) */}
+              {graphData.radius && !diameterLine && (
                 <>
                   <line x1={cx} y1={cy} x2={cx + r} y2={cy}
                     stroke="#FF922B" strokeWidth={1.5} strokeDasharray="4,3" />
@@ -591,12 +672,34 @@ export default function MathGraph({ graphData }) {
                     fontWeight={600} textAnchor="middle">{graphData.radius}</text>
                 </>
               )}
-              {/* Chord (under points so the dot sits on top) */}
+              {/* Inscribed polygon fill (behind chords/diameter) */}
+              {polygonPath && (
+                <path d={polygonPath} fill="rgba(108,99,255,0.08)"
+                  stroke="#1a1a2e" strokeWidth={1.8} />
+              )}
+              {/* Diameter */}
+              {diameterLine && (
+                <line x1={diameterLine.x1} y1={diameterLine.y1}
+                  x2={diameterLine.x2} y2={diameterLine.y2}
+                  stroke="#1a1a2e" strokeWidth={2} />
+              )}
+              {/* Legacy single chord */}
               {chordLine && (
                 <line x1={chordLine.x1} y1={chordLine.y1}
                   x2={chordLine.x2} y2={chordLine.y2}
                   stroke="#1a1a2e" strokeWidth={1.8} />
               )}
+              {/* Multiple chords */}
+              {chordLines.map((c, i) => (
+                <line key={`cl-${i}`} x1={c.x1} y1={c.y1} x2={c.x2} y2={c.y2}
+                  stroke="#1a1a2e" strokeWidth={1.8} />
+              ))}
+              {/* Right-angle mark (above chords, below points) */}
+              {rightAnglePath && (
+                <path d={rightAnglePath} fill="none" stroke="#1a1a2e" strokeWidth={1.5} />
+              )}
+              {/* Angle labels at vertices */}
+              {angleLabelElems}
               {/* Center marker + label */}
               {graphData.center && (
                 <g>
