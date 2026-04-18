@@ -108,6 +108,42 @@ export function dynamicLabelOffsets(vertices) {
   })
 }
 
+/**
+ * Distribute labelled points around a circle.
+ *   points: array of { label, angle? } — angle in DEGREES, measured CCW
+ *           from +x axis. When angle is null/undefined, the point is
+ *           auto-placed at an evenly-spaced slot starting from 90° (top)
+ *           and sweeping clockwise so A is always "up".
+ *   cx, cy, r: pixel center + radius of the rendered circle.
+ *   labelOffset: how far outside the radius the text label sits.
+ *
+ * Returns array of { label, x, y, labelX, labelY }.
+ * Kept in graphGeometry so MathGraph can stay declarative AND so we can
+ * unit-test placement without rendering.
+ */
+export function distributePointsOnCircle(points, cx, cy, r, labelOffset = 14) {
+  if (!Array.isArray(points) || points.length === 0) return []
+  const n = points.length
+  // Auto slots: top (90°) then clockwise at 360/n spacing, but skip any
+  // slots that already exceed n placements so labels don't overlap.
+  const autoSlots = []
+  const step = 360 / n
+  for (let i = 0; i < n; i++) autoSlots.push(90 - i * step)
+
+  let autoIdx = 0
+  return points.map((p) => {
+    const hasAngle = typeof p.angle === 'number' && isFinite(p.angle)
+    const angDeg = hasAngle ? p.angle : autoSlots[autoIdx++]
+    const angRad = (angDeg * Math.PI) / 180
+    // +x axis is to the right in SVG; y grows downward → negate sin.
+    const x = cx + r * Math.cos(angRad)
+    const y = cy - r * Math.sin(angRad)
+    const labelX = cx + (r + labelOffset) * Math.cos(angRad)
+    const labelY = cy - (r + labelOffset) * Math.sin(angRad)
+    return { label: p.label, x, y, labelX, labelY }
+  })
+}
+
 /** Side midpoint labels pushed outward from centroid. */
 export function dynamicSideOffsets(vertices, count) {
   const centX = vertices.reduce((s, v) => s + v.x, 0) / vertices.length

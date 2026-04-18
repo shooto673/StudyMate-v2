@@ -93,6 +93,57 @@ const GRAPH_DATA_SCHEMA = {
                 width: { type: ['string', 'null'], description: 'Width for unlabeled rectangles' },
                 height: { type: ['string', 'null'], description: 'Height for unlabeled rectangles' },
                 radius: { type: ['string', 'null'], description: 'Radius for circles' },
+                // Circle labeling: center + points on circumference + optional chord
+                center: { type: ['string', 'null'], description: 'Label for the circle center (usually "O"). Set whenever the question mentions 中心/圏心O or the center is referenced at all.' },
+                pointsOnCircle: {
+                  type: ['array', 'null'],
+                  description: 'Labelled points lying on the circumference (e.g. A, B, C). Use this when the question mentions 点A, 点B on the circle.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      label: { type: 'string' },
+                      angle: { type: ['number', 'null'], description: 'Angle in degrees (0-360, CCW from +x). null → auto-distribute' },
+                    },
+                    required: ['label', 'angle'],
+                    additionalProperties: false,
+                  },
+                },
+                chord: {
+                  type: ['object', 'null'],
+                  description: 'Optional chord connecting two labelled points on the circle. Set from and to to the point labels.',
+                  properties: {
+                    from: { type: 'string' },
+                    to: { type: 'string' },
+                  },
+                  required: ['from', 'to'],
+                  additionalProperties: false,
+                },
+                // Coordinate-plane polygon (e.g. parallelogram plotted at (0,0)(3,0)(5,2)(2,2))
+                polygons: {
+                  type: ['array', 'null'],
+                  description: 'Closed polygons drawn on the coordinate plane. Use this when the question defines a shape by vertex coordinates (e.g. "A(0,0), B(3,0), C(5,2), D(2,2)"). Do NOT use for polygons without explicit coordinates — those go under shape.',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      vertices: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            x: { type: 'number' },
+                            y: { type: 'number' },
+                            label: { type: ['string', 'null'] },
+                          },
+                          required: ['x', 'y', 'label'],
+                          additionalProperties: false,
+                        },
+                      },
+                      label: { type: ['string', 'null'], description: 'Optional overall label like "平行四辺形ABCD"' },
+                    },
+                    required: ['vertices', 'label'],
+                    additionalProperties: false,
+                  },
+                },
                 // Second shape for congruence/similarity pairs (三角形ABC ≅ 三角形DEF)
                 secondShape: {
                   type: ['object', 'null'],
@@ -119,7 +170,8 @@ const GRAPH_DATA_SCHEMA = {
               required: [
                 'type', 'shape', 'labels', 'sides', 'angles', 'diagonals',
                 'width', 'height', 'radius', 'secondShape',
-                'range', 'lines', 'curves', 'points',
+                'center', 'pointsOnCircle', 'chord',
+                'range', 'lines', 'curves', 'points', 'polygons',
                 'min', 'max', 'nlPoints',
               ],
               additionalProperties: false,
@@ -243,6 +295,16 @@ async function extractGraphData(questions, openaiKey) {
 - 「直角三角形ABC、∠C=90°、∠A=35°」→ labels:["A","B","C"], angles:["35°",null,"90°"], sides:null でOK
 - 直角三角形は sidesがなくても necessarily needsGraph=true にすること
 
+【円のラベル付け（必ず可視化）】
+- 円の問題で中心が登場するときは center: "O"（または問題文のラベル）を設定すること
+- 円周上の点（A, B, C など）が登場する場合は pointsOnCircle に { label, angle: null } で列挙（angle は null のままで良い。自動配置される）
+- 弦が問われる問題（AB弦、∠AOB等）では chord: { from: "A", to: "B" } を設定
+- 例: 「中心Oの円で、円周上の点A, Bが…」→ center:"O", pointsOnCircle:[{label:"A",angle:null},{label:"B",angle:null}]
+
+【座標平面上の多角形（必ず可視化）】
+- 問題文が頂点を座標で与える場合（例: 「A(0,0), B(3,0), C(5,2), D(2,2)を頂点とする平行四辺形」）→ type:"coordinate", polygons:[{vertices:[{x:0,y:0,label:"A"},...], label:"平行四辺形ABCD"}]
+- 座標が与えられていない図形は polygons ではなく type:"shape" を使うこと（これまで通り）
+
 【合同・相似な三角形のペア（必ず可視化）】
 - 「三角形ABC ≅ 三角形DEF」「三角形ABC と 三角形DEF は合同」のような問題は secondShape に2つ目の三角形を設定すること
 - 例: 「三角形ABCと三角形DEFは合同。AB=4cm、BC=5cm、CA=6cm。三角形DEFの辺の長さで正しいのは？」
@@ -357,6 +419,23 @@ export function sanitizeGraphData(question, gd) {
       gd.range = 5
     } else if (gd.range > 8) {
       gd.range = 8
+    }
+    // If polygons are present, ensure the range actually fits them.
+    // LLM sometimes leaves range=5 even with a vertex at (7, -3); without
+    // this expand step the labels would render off-axis-area.
+    if (Array.isArray(gd.polygons) && gd.polygons.length > 0) {
+      let maxAbs = 0
+      for (const poly of gd.polygons) {
+        if (!poly || !Array.isArray(poly.vertices)) continue
+        for (const v of poly.vertices) {
+          if (typeof v.x === 'number') maxAbs = Math.max(maxAbs, Math.abs(v.x))
+          if (typeof v.y === 'number') maxAbs = Math.max(maxAbs, Math.abs(v.y))
+        }
+      }
+      if (maxAbs > 0) {
+        const needed = Math.min(8, Math.max(gd.range, Math.ceil(maxAbs) + 1))
+        gd.range = needed
+      }
     }
   }
 

@@ -40,12 +40,13 @@ export function validateGraphData(question, graphData) {
     return { rejected: true, reason: `unsupported_type:${graphData.type}` }
   }
 
-  // Coordinate requires at least one line, curve, or point
+  // Coordinate requires at least one line, curve, point, or polygon
   if (graphData.type === 'coordinate') {
     const hasLines = Array.isArray(graphData.lines) && graphData.lines.length > 0
     const hasCurves = Array.isArray(graphData.curves) && graphData.curves.length > 0
     const hasPoints = Array.isArray(graphData.points) && graphData.points.length > 0
-    if (!hasLines && !hasCurves && !hasPoints) {
+    const hasPolygons = Array.isArray(graphData.polygons) && graphData.polygons.length > 0
+    if (!hasLines && !hasCurves && !hasPoints && !hasPolygons) {
       return { rejected: true, reason: 'coordinate_empty' }
     }
     if (hasLines) {
@@ -59,6 +60,18 @@ export function validateGraphData(question, graphData) {
       for (const curve of graphData.curves) {
         if (typeof curve.a !== 'number' || curve.a === 0) {
           return { rejected: true, reason: 'coordinate_bad_curve' }
+        }
+      }
+    }
+    if (hasPolygons) {
+      for (const poly of graphData.polygons) {
+        if (!Array.isArray(poly.vertices) || poly.vertices.length < 3) {
+          return { rejected: true, reason: 'coordinate_polygon_too_few_vertices' }
+        }
+        for (const v of poly.vertices) {
+          if (typeof v.x !== 'number' || typeof v.y !== 'number') {
+            return { rejected: true, reason: 'coordinate_polygon_bad_vertex' }
+          }
         }
       }
     }
@@ -85,13 +98,21 @@ export function validateGraphData(question, graphData) {
     }
   }
 
-  // Label-coverage check: accept if at least half of mentioned labels are present
+  // Label-coverage check: accept if at least half of mentioned labels are present.
+  // Circle labels come from `center` + `pointsOnCircle[].label`, not `labels`.
   if (graphData.type === 'shape') {
     const mentioned = extractMentionedLabels(question)
     if (mentioned.length > 0) {
       const graphLabels = graphData.labels || []
       const secondLabels = (graphData.secondShape && graphData.secondShape.labels) || []
-      const allLabels = new Set([...graphLabels, ...secondLabels])
+      const circleLabels = []
+      if (typeof graphData.center === 'string') circleLabels.push(graphData.center)
+      if (Array.isArray(graphData.pointsOnCircle)) {
+        for (const p of graphData.pointsOnCircle) {
+          if (p && typeof p.label === 'string') circleLabels.push(p.label)
+        }
+      }
+      const allLabels = new Set([...graphLabels, ...secondLabels, ...circleLabels])
       const missingCount = mentioned.filter(l => !allLabels.has(l)).length
       if (missingCount > mentioned.length / 2) {
         return { rejected: true, reason: `labels_mismatch:mentioned=${mentioned.join('')},graph=${[...allLabels].join('')}` }

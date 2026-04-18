@@ -5,6 +5,7 @@ import {
   computeTriangleFromAngles,
   dynamicLabelOffsets,
   dynamicSideOffsets,
+  distributePointsOnCircle,
 } from '../lib/graphGeometry'
 
 const SUPPORTED_SHAPES = ['triangle', 'rectangle', 'rhombus', 'parallelogram', 'circle', 'parallel_lines']
@@ -191,6 +192,38 @@ export default function MathGraph({ graphData }) {
             )
           })
         })()}
+        {/* Polygons (e.g. parallelogram defined by A(0,0) B(3,0) C(5,2) D(2,2)) */}
+        {(graphData.polygons || []).map((poly, pi) => {
+          const verts = Array.isArray(poly.vertices) ? poly.vertices : []
+          if (verts.length < 3) return null
+          const ptsAttr = verts.map(v => `${toX(v.x)},${toY(v.y)}`).join(' ')
+          const centroidX = verts.reduce((s, v) => s + v.x, 0) / verts.length
+          const centroidY = verts.reduce((s, v) => s + v.y, 0) / verts.length
+          return (
+            <g key={`poly-${pi}`}>
+              <polygon points={ptsAttr}
+                fill="rgba(108,99,255,0.08)" stroke="#6C63FF" strokeWidth={2}
+                clipPath="url(#graphClip)" />
+              {verts.map((v, vi) => {
+                // Push vertex label away from polygon centroid so it doesn't sit on the edge.
+                const dx = v.x - centroidX, dy = v.y - centroidY
+                const mag = Math.hypot(dx, dy) || 1
+                const lx = toX(v.x) + (dx / mag) * 10
+                const ly = toY(v.y) - (dy / mag) * 10
+                return (
+                  <g key={`poly-${pi}-v-${vi}`}>
+                    <circle cx={toX(v.x)} cy={toY(v.y)} r={3.5}
+                      fill="#1a1a2e" stroke="#fff" strokeWidth={1} />
+                    {v.label && (
+                      <text x={lx} y={ly + 4} fontSize={11} fill="#1a1a2e"
+                        fontWeight={700} textAnchor="middle">{v.label}</text>
+                    )}
+                  </g>
+                )
+              })}
+            </g>
+          )
+        })}
         {/* Points */}
         {(graphData.points || []).map((pt, i) => (
           <g key={`pt-${i}`}>
@@ -531,18 +564,60 @@ export default function MathGraph({ graphData }) {
           )
         })()}
 
-        {/* Circle */}
-        {graphData.shape === 'circle' && (
-          <g>
-            <circle cx={cx} cy={cy} r={70} fill="none" stroke="#6C63FF" strokeWidth={2.5} />
-            {graphData.radius && (
-              <>
-                <line x1={cx} y1={cy} x2={cx + 70} y2={cy} stroke="#FF922B" strokeWidth={1.5} strokeDasharray="4,3" />
-                <text x={cx + 35} y={cy - 8} fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="middle">{graphData.radius}</text>
-              </>
-            )}
-          </g>
-        )}
+        {/* Circle — now with optional center label (O) and labelled circumference points */}
+        {graphData.shape === 'circle' && (() => {
+          const r = 70
+          const circlePoints = distributePointsOnCircle(
+            Array.isArray(graphData.pointsOnCircle) ? graphData.pointsOnCircle : [],
+            cx, cy, r,
+          )
+          // Resolve chord endpoints by looking up labels in circlePoints
+          let chordLine = null
+          if (graphData.chord && graphData.chord.from && graphData.chord.to) {
+            const pFrom = circlePoints.find(p => p.label === graphData.chord.from)
+            const pTo = circlePoints.find(p => p.label === graphData.chord.to)
+            if (pFrom && pTo) chordLine = { x1: pFrom.x, y1: pFrom.y, x2: pTo.x, y2: pTo.y }
+          }
+          return (
+            <g>
+              <circle cx={cx} cy={cy} r={r} fill="none" stroke="#6C63FF" strokeWidth={2.5} />
+              {/* Radius indicator (existing behavior, drawn to +x axis so it doesn't
+                  collide with a labelled point unless there's one at 0°) */}
+              {graphData.radius && (
+                <>
+                  <line x1={cx} y1={cy} x2={cx + r} y2={cy}
+                    stroke="#FF922B" strokeWidth={1.5} strokeDasharray="4,3" />
+                  <text x={cx + r / 2} y={cy - 8} fontSize={11} fill="#FF922B"
+                    fontWeight={600} textAnchor="middle">{graphData.radius}</text>
+                </>
+              )}
+              {/* Chord (under points so the dot sits on top) */}
+              {chordLine && (
+                <line x1={chordLine.x1} y1={chordLine.y1}
+                  x2={chordLine.x2} y2={chordLine.y2}
+                  stroke="#1a1a2e" strokeWidth={1.8} />
+              )}
+              {/* Center marker + label */}
+              {graphData.center && (
+                <g>
+                  <circle cx={cx} cy={cy} r={3} fill="#1a1a2e" />
+                  <text x={cx + 6} y={cy + 14} fontSize={12}
+                    fill="#1a1a2e" fontWeight={700}>{graphData.center}</text>
+                </g>
+              )}
+              {/* Circumference points with labels */}
+              {circlePoints.map((p, i) => (
+                <g key={`cp-${i}`}>
+                  <circle cx={p.x} cy={p.y} r={3.5} fill="#1a1a2e" />
+                  <text x={p.labelX} y={p.labelY + 4}
+                    fontSize={12} fill="#1a1a2e" fontWeight={700} textAnchor="middle">
+                    {p.label}
+                  </text>
+                </g>
+              ))}
+            </g>
+          )
+        })()}
       </svg>
     )
   }

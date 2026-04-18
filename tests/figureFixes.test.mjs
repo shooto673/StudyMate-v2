@@ -14,7 +14,11 @@ import {
 } from '../api/generate.js'
 import { validateQuestionObject } from '../lib/questionValidator.js'
 import { buildGraphFromSpec } from '../lib/buildGraphFromSpec.js'
-import { computeTriangleVertices } from '../frontend/src/lib/graphGeometry.js'
+import {
+  computeTriangleVertices,
+  distributePointsOnCircle,
+} from '../frontend/src/lib/graphGeometry.js'
+import { validateGraphData } from '../frontend/src/lib/graphValidator.js'
 
 export default [
   // ── Issue 5: full-width minus normalisation ────────────────────────
@@ -341,6 +345,137 @@ export default [
       assert.ok(gd)
       assert.strictEqual(gd.extensions, undefined,
         'only exterior_angle should carry extensions')
+    },
+  },
+
+  // ── Issue 10: circle O/A/B labels ──────────────────────────────────
+  {
+    name: 'distributePointsOnCircle: single point auto-lands at top (90°)',
+    fn: async () => {
+      const out = distributePointsOnCircle([{ label: 'A', angle: null }], 100, 100, 50)
+      assert.strictEqual(out.length, 1)
+      // 90° → x = cx (cos90=0), y = cy - r (sin90=1)
+      assert.ok(Math.abs(out[0].x - 100) < 0.01, `expected x≈100, got ${out[0].x}`)
+      assert.ok(Math.abs(out[0].y - 50) < 0.01, `expected y≈50, got ${out[0].y}`)
+      assert.strictEqual(out[0].label, 'A')
+    },
+  },
+  {
+    name: 'distributePointsOnCircle: 3 auto points spread evenly',
+    fn: async () => {
+      const out = distributePointsOnCircle(
+        [{ label: 'A', angle: null }, { label: 'B', angle: null }, { label: 'C', angle: null }],
+        100, 100, 50,
+      )
+      assert.strictEqual(out.length, 3)
+      // All should sit on the circle
+      for (const p of out) {
+        const d = Math.hypot(p.x - 100, p.y - 100)
+        assert.ok(Math.abs(d - 50) < 0.01, `point ${p.label} not on circle: d=${d}`)
+      }
+      // A is top, B sweeps clockwise ~120°, C ~240°
+      const ya = out[0].y, yb = out[1].y, yc = out[2].y
+      assert.ok(ya < yb && ya < yc, 'A should be highest (smallest y)')
+    },
+  },
+  {
+    name: 'distributePointsOnCircle: explicit angle overrides auto',
+    fn: async () => {
+      const out = distributePointsOnCircle([{ label: 'A', angle: 0 }], 100, 100, 50)
+      // angle=0 → x = cx+r, y = cy
+      assert.ok(Math.abs(out[0].x - 150) < 0.01)
+      assert.ok(Math.abs(out[0].y - 100) < 0.01)
+    },
+  },
+  {
+    name: 'distributePointsOnCircle: empty/null returns empty array',
+    fn: async () => {
+      assert.deepStrictEqual(distributePointsOnCircle([], 100, 100, 50), [])
+      assert.deepStrictEqual(distributePointsOnCircle(null, 100, 100, 50), [])
+    },
+  },
+  {
+    name: 'graphValidator accepts circle with center + pointsOnCircle',
+    fn: async () => {
+      const gd = {
+        type: 'shape', shape: 'circle',
+        center: 'O',
+        pointsOnCircle: [{ label: 'A', angle: null }, { label: 'B', angle: null }],
+        chord: { from: 'A', to: 'B' },
+      }
+      const v = validateGraphData('中心Oの円で、円周上の点A, Bを結ぶ弦の長さを求めなさい。', gd)
+      assert.ok(v && !v.rejected, `rejected: ${v?.reason}`)
+    },
+  },
+  {
+    name: 'graphValidator label-coverage uses circle labels (not just `labels`)',
+    fn: async () => {
+      // O, A, B are ONLY in center + pointsOnCircle. Without our fix
+      // this would reject as labels_mismatch because graphData.labels is empty.
+      const gd = {
+        type: 'shape', shape: 'circle',
+        labels: null,
+        center: 'O',
+        pointsOnCircle: [{ label: 'A', angle: null }, { label: 'B', angle: null }],
+      }
+      const v = validateGraphData('中心Oの円で、点A, 点Bが円周上にある。', gd)
+      assert.ok(v && !v.rejected, `circle labels should satisfy coverage: ${v?.reason}`)
+    },
+  },
+
+  // ── Issue 11: coordinate polygons (parallelogram on coord plane) ───
+  {
+    name: 'graphValidator accepts coordinate polygon',
+    fn: async () => {
+      const gd = {
+        type: 'coordinate',
+        range: 5,
+        polygons: [{
+          vertices: [
+            { x: 0, y: 0, label: 'A' },
+            { x: 3, y: 0, label: 'B' },
+            { x: 5, y: 2, label: 'C' },
+            { x: 2, y: 2, label: 'D' },
+          ],
+          label: '平行四辺形ABCD',
+        }],
+      }
+      const v = validateGraphData('A(0,0), B(3,0), C(5,2), D(2,2)を頂点とする平行四辺形。', gd)
+      assert.ok(v && !v.rejected, `rejected: ${v?.reason}`)
+    },
+  },
+  {
+    name: 'graphValidator rejects coordinate with ONLY an empty polygon',
+    fn: async () => {
+      const gd = {
+        type: 'coordinate',
+        range: 5,
+        polygons: [{ vertices: [{ x: 0, y: 0, label: 'A' }], label: null }],
+      }
+      const v = validateGraphData('', gd)
+      assert.ok(v && v.rejected, 'a 1-vertex polygon must be rejected')
+      assert.strictEqual(v.reason, 'coordinate_polygon_too_few_vertices')
+    },
+  },
+  {
+    name: 'sanitizeGraphData expands coordinate range to fit polygon vertices',
+    fn: async () => {
+      const gd = {
+        type: 'coordinate',
+        range: 3, // too tight for a vertex at (6, 2)
+        polygons: [{
+          vertices: [
+            { x: 0, y: 0, label: 'A' },
+            { x: 6, y: 0, label: 'B' },
+            { x: 6, y: 2, label: 'C' },
+            { x: 0, y: 2, label: 'D' },
+          ],
+          label: null,
+        }],
+      }
+      sanitizeGraphData('', gd)
+      assert.ok(gd.range >= 7, `range should expand to fit (6,2), got ${gd.range}`)
+      assert.ok(gd.range <= 8, `range should still cap at 8, got ${gd.range}`)
     },
   },
 ]
