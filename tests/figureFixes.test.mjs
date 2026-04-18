@@ -1,17 +1,19 @@
-// Regression coverage for the six figure-rendering bugs patched
-// after tester feedback:
-//   1. Triangle shape must vary with provided side lengths
-//   2. Parallelogram sides must be re-extracted from question text
-//   3. Sides/angles that are "being asked" must not appear on the figure
-//   4. Coordinate range must stay visually reasonable (≤8)
-//   5. Full-width minus (U+2212) must normalise to ASCII
-//   6. (Prompt-only — exercised by manual QA; no automated assertion)
+// Regression coverage for the figure-rendering bugs patched after
+// tester feedback. Items 1-6 came from the first round (triangles,
+// parallelograms, coord ranges, full-width minus). Items 7-9 came
+// from the follow-up round (answer integrity / figure integrity):
+//   7. Angle values (角ABC=50°) must not leak into sides as "50cm"
+//   8. Parallelogram "対角" questions must not have both ∠A=∠C AND
+//      ∠B=∠D in choices (both are true → multiple correct answers)
+//   9. exterior_angle figures must include a labelled D extension point
 import assert from 'node:assert/strict'
 import {
   normalizeMathText,
   isBeingAsked,
   sanitizeGraphData,
 } from '../api/generate.js'
+import { validateQuestionObject } from '../lib/questionValidator.js'
+import { buildGraphFromSpec } from '../lib/buildGraphFromSpec.js'
 import { computeTriangleVertices } from '../frontend/src/lib/graphGeometry.js'
 
 export default [
@@ -220,6 +222,125 @@ export default [
       assert.ok(norm.includes('AB=8cm'), 'full-width = must normalise')
       assert.strictEqual(isBeingAsked(norm, 'CD'), true)
       assert.strictEqual(isBeingAsked(norm, 'AB'), false)
+    },
+  },
+
+  // ── Issue 7: angle values must not leak into sides slot ────────────
+  {
+    name: 'sanitizeGraphData: 角ABC=50° does NOT leak as sides[i]="50cm"',
+    fn: async () => {
+      // Realistic Stage-2 misread: question talks about an angle,
+      // Stage-2 put the 50 into sides[1] as "50cm".
+      const q = '平行四辺形ABCDにおいて、角ABC=50°のとき、角ADCの大きさを求めなさい。'
+      const gd = {
+        type: 'shape', shape: 'parallelogram',
+        labels: ['A', 'B', 'C', 'D'],
+        sides: [null, '50cm', null, null],
+      }
+      sanitizeGraphData(q, gd)
+      assert.strictEqual(gd.sides[1], null,
+        'BC=50cm must be nulled because 50 only appears as an angle')
+    },
+  },
+  {
+    name: 'sanitizeGraphData: ∠ABC=50° variant also nulls sides leak',
+    fn: async () => {
+      const q = '平行四辺形ABCDで ∠ABC=50°。∠ADCの大きさを求めなさい。'
+      const gd = {
+        type: 'shape', shape: 'parallelogram',
+        labels: ['A', 'B', 'C', 'D'],
+        sides: [null, '50cm', null, null],
+      }
+      sanitizeGraphData(q, gd)
+      assert.strictEqual(gd.sides[1], null)
+    },
+  },
+  {
+    name: 'sanitizeGraphData: legitimate AB=8cm is kept (not nulled by verifier)',
+    fn: async () => {
+      const q = '平行四辺形ABCDで AB=8cm、BC=5cm。'
+      const gd = {
+        type: 'shape', shape: 'parallelogram',
+        labels: ['A', 'B', 'C', 'D'],
+        sides: ['8cm', '5cm', '8cm', '5cm'], // CD/DA inferred via parallel-pair
+      }
+      sanitizeGraphData(q, gd)
+      // All four must be preserved: AB/BC direct, CD/DA via parallel pair.
+      assert.deepStrictEqual(gd.sides, ['8cm', '5cm', '8cm', '5cm'])
+    },
+  },
+
+  // ── Issue 8: multiple-valid parallelogram opposite-angle choices ───
+  {
+    name: 'validator flags multiple_valid_opposite_angles when both A=C and B=D appear',
+    fn: async () => {
+      const q = {
+        question: '平行四辺形ABCDにおいて、対角に関して正しいものはどれか。',
+        choices: ['∠A=∠C', '∠A=∠B', '∠B=∠D', '∠A=∠D'],
+        correctIndex: 0,
+        correctAnswer: '∠A=∠C',
+        explanation: '平行四辺形の対角は等しいので∠A=∠C。',
+      }
+      const v = validateQuestionObject(q)
+      assert.ok(v.errors.includes('multiple_valid_opposite_angles'),
+        `expected multiple_valid_opposite_angles, got ${v.errors.join(',')}`)
+    },
+  },
+  {
+    name: 'validator passes when only ONE opposite-angle choice is present',
+    fn: async () => {
+      const q = {
+        question: '平行四辺形ABCDにおいて、対角に関して正しいものはどれか。',
+        choices: ['∠A=∠C', '∠A=∠B', '∠A+∠B=180°', '∠A=∠D'],
+        correctIndex: 0,
+        correctAnswer: '∠A=∠C',
+        explanation: '平行四辺形の対角は等しいので∠A=∠C。',
+      }
+      const v = validateQuestionObject(q)
+      assert.ok(!v.errors.includes('multiple_valid_opposite_angles'),
+        `no ambiguity expected, got ${v.errors.join(',')}`)
+    },
+  },
+  {
+    name: 'validator does NOT flag when question is not about parallelogram 対角',
+    fn: async () => {
+      // Question mentions 平行四辺形 but NOT 対角 — rule must not fire
+      const q = {
+        question: '平行四辺形ABCDで、正しいものはどれか。',
+        choices: ['∠A=∠C', '∠B=∠D', 'AB=CD', 'BC=DA'],
+        correctIndex: 2,
+        correctAnswer: 'AB=CD',
+        explanation: '',
+      }
+      const v = validateQuestionObject(q)
+      assert.ok(!v.errors.includes('multiple_valid_opposite_angles'))
+    },
+  },
+
+  // ── Issue 9: exterior_angle figure includes D extension point ──────
+  {
+    name: 'buildGraphFromSpec exterior_angle attaches extensions with D',
+    fn: async () => {
+      const spec = { problemType: 'exterior_angle', given: { angleA: 40, angleB: 70 } }
+      const gd = buildGraphFromSpec(spec)
+      assert.ok(gd, 'graphData should be built')
+      assert.strictEqual(gd.shape, 'triangle')
+      assert.ok(Array.isArray(gd.extensions), 'extensions array must exist')
+      assert.strictEqual(gd.extensions.length, 1)
+      const e = gd.extensions[0]
+      assert.strictEqual(e.through, 'BC', 'line must go through BC')
+      assert.strictEqual(e.beyond, 'C', 'D is beyond C')
+      assert.strictEqual(e.label, 'D')
+    },
+  },
+  {
+    name: 'buildGraphFromSpec triangle_angle_sum does NOT include extensions',
+    fn: async () => {
+      const spec = { problemType: 'triangle_angle_sum', given: { angleA: 40, angleB: 70 } }
+      const gd = buildGraphFromSpec(spec)
+      assert.ok(gd)
+      assert.strictEqual(gd.extensions, undefined,
+        'only exterior_angle should carry extensions')
     },
   },
 ]

@@ -6,6 +6,7 @@
   "scripts": {
     "test": "node tests/run.mjs",
     "build": "npm --prefix frontend run build",
-    "dev": "npm --prefix frontend run dev"
+    "dev": "npm --prefix frontend run dev",
+    "prepush": "node scripts/preflight.mjs && node tests/run.mjs"
   }
 }

@@ -363,6 +363,12 @@ export function sanitizeGraphData(question, gd) {
   if (gd.type === 'shape' && Array.isArray(gd.labels)) {
     // Null asked sides / angles on main shape
     _nullAskedEdges(q, gd)
+    // Cross-check each non-null side against the question text.
+    // Prevents angle values (角ABC=50°) from leaking into the sides slot
+    // as "BC=50cm" when Stage-2 misreads the token.
+    if (Array.isArray(gd.sides) && gd.sides.length === gd.labels.length) {
+      gd.sides = _verifySidesAgainstText(q, gd.labels, gd.sides)
+    }
     // Re-extract numeric sides for quads when Stage-2 left them empty
     if ((gd.shape === 'parallelogram' || gd.shape === 'rectangle' || gd.shape === 'rhombus')
         && (!gd.sides || gd.sides.every(s => s === null || s === undefined))) {
@@ -372,10 +378,61 @@ export function sanitizeGraphData(question, gd) {
     // Same treatment on secondShape (similarity/congruence pairs)
     if (gd.secondShape && Array.isArray(gd.secondShape.labels)) {
       _nullAskedEdges(q, gd.secondShape)
+      if (Array.isArray(gd.secondShape.sides)
+          && gd.secondShape.sides.length === gd.secondShape.labels.length) {
+        gd.secondShape.sides = _verifySidesAgainstText(
+          q, gd.secondShape.labels, gd.secondShape.sides
+        )
+      }
     }
   }
 
   return gd
+}
+
+/**
+ * Verify each non-null entry in `sides` is actually backed by a length
+ * attribution in the question text (e.g. "AB = 8cm"). Nulls out entries
+ * that can only be justified by an angle ("角ABC = 50°") or not at all.
+ *
+ * For quadrilaterals we also accept the parallel-pair fallback: if the
+ * opposite side is declared with the same value+unit, we keep it, since
+ * parallelograms/rectangles/rhombuses have equal opposite sides by
+ * definition.
+ */
+function _verifySidesAgainstText(q, labels, sides) {
+  const n = labels.length
+  if (!Array.isArray(sides) || sides.length !== n) return sides
+  const esc = s => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const out = [...sides]
+
+  const pairHasLength = (a, b, num) => {
+    // Accept: "AB=8cm", "辺ABの長さは8cm", "AB は 8 cm" etc. Either ordering.
+    // Disallow: "角ABC=50°" (angle marker 角/∠ precedes the pair).
+    const re = new RegExp(
+      `(?<![角∠])(?:辺)?(?:${esc(a)}${esc(b)}|${esc(b)}${esc(a)})` +
+      `[^\\d\\n。]{0,10}${esc(num)}\\s*(?:cm|mm|m|km)`
+    )
+    return re.test(q)
+  }
+
+  for (let i = 0; i < n; i++) {
+    const val = out[i]
+    if (val === null || val === undefined) continue
+    const numMatch = /(\d+(?:\.\d+)?)/.exec(String(val))
+    if (!numMatch) continue
+    const num = numMatch[1]
+    const a = labels[i], b = labels[(i + 1) % n]
+    if (pairHasLength(a, b, num)) continue
+    // Parallel-pair fallback for quads (opposite sides are equal)
+    if (n === 4) {
+      const a2 = labels[(i + 2) % n], b2 = labels[(i + 3) % n]
+      if (pairHasLength(a2, b2, num)) continue
+    }
+    // No length attribution in the text → likely an angle that leaked.
+    out[i] = null
+  }
+  return out
 }
 
 function _nullAskedEdges(q, shape) {
@@ -406,10 +463,16 @@ function _extractSidesFromText(q, labels) {
     const a = labels[i], b = labels[(i + 1) % n]
     const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
     // Accept "AB = 5cm", "辺ABの長さは5cm", "ABは 5 cm" etc. Also BA ordering.
+    //
+    // CRITICAL guards (prevent angle values leaking in as sides):
+    //   • lookbehind (?<![角∠]) — reject "角ABC=50°" matching at "BC=50"
+    //   • unit is REQUIRED (cm|mm|m|km) — reject "50°" (degree)
+    // The original version made the unit optional and defaulted to cm,
+    // which pulled angle values into the sides slot.
     const re = new RegExp(
-      `(?:辺)?(?:${esc(a)}${esc(b)}|${esc(b)}${esc(a)})` +
+      `(?<![角∠])(?:辺)?(?:${esc(a)}${esc(b)}|${esc(b)}${esc(a)})` +
       `\\s*(?:の(?:長さ|値))?\\s*(?:[=＝がは]|\\bis\\b)\\s*` +
-      `(\\d+(?:\\.\\d+)?)\\s*(cm|mm|m|km)?`
+      `(\\d+(?:\\.\\d+)?)\\s*(cm|mm|m|km)\\b`
     )
     const m = q.match(re)
     if (m) {
@@ -417,7 +480,7 @@ function _extractSidesFromText(q, labels) {
       if (isBeingAsked(q, pair) || isBeingAsked(q, `${b}${a}`)) {
         out.push(null)
       } else {
-        out.push(`${m[1]}${m[2] || 'cm'}`)
+        out.push(`${m[1]}${m[2]}`)
       }
     } else {
       out.push(null)
@@ -576,6 +639,10 @@ ${summaryInstruction}
 ルール:
 - 各問題は question（問題文）、choices（4つの選択肢配列）、correctIndex（正解のインデックス0-3）、correctAnswer（正解の選択肢テキスト）、explanation（解説）を含む
 - 【重要】correctAnswer は choices[correctIndex] と完全一致する文字列にすること。解説で導かれる正解がcorrectAnswerと一致することを必ず確認。
+- 【選択肢の相互排他性】4つの選択肢のうち、数学的に正しいものは必ず1つだけに限定すること。2つ以上の選択肢が同時に成り立つ問題を作ってはならない。
+  ・悪い例: 平行四辺形ABCDの性質を問う問題で「∠A=∠C」と「∠B=∠D」を同時に選択肢に含める（どちらも平行四辺形では常に真）。どちらか片方のみを選択肢に入れること。
+  ・悪い例: 「AB=CD」と「AD=BC」を同時に含める（平行四辺形ではどちらも真）。
+  ・この手の問題は「正しい組み合わせはどれか」ではなく「次のうち誤っているものはどれか」にするか、偽の選択肢を3つ混ぜて真の選択肢を1つだけにすること。
 - correctIndexは0-3でランダムに分散させること（毎回同じ位置にしない）
 - 問題は基本〜標準レベル
 - 問題文は簡潔に（中学生が理解できる日本語）
@@ -679,6 +746,9 @@ ${summaryInstruction}
           'correct_index_does_not_point_at_correct_answer',
           'correct_index_out_of_range',
           'explanation_final_mismatch',
+          // Ambiguous: multiple correct answers — would punish a student
+          // who picked a mathematically-valid choice.
+          'multiple_valid_opposite_angles',
         ])
         const hasCritical = v.errors.some(e => CRITICAL.has(e))
         // Alien-label errors are already mitigated by removeContaminatedSentences,

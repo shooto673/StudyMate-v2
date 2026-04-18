@@ -295,8 +295,45 @@ export default function MathGraph({ graphData }) {
             )
           })
 
+          // Extension points: e.g. `{ through: 'BC', beyond: 'C', label: 'D' }`
+          // is the ray B→C continued past C. Used by exterior_angle so the
+          // student can see where D is.
+          const extensionRender = (graphData.extensions || []).map((ext, i) => {
+            if (!ext || typeof ext.through !== 'string' || !ext.beyond || !ext.label) return null
+            const through = ext.through.split('')
+            if (through.length !== 2) return null
+            const otherLabel = through.find(l => l !== ext.beyond)
+            if (!otherLabel) return null
+            const bIdx = graphData.labels?.indexOf(ext.beyond) ?? -1
+            const oIdx = graphData.labels?.indexOf(otherLabel) ?? -1
+            if (bIdx < 0 || oIdx < 0) return null
+            const pB = vertices[bIdx]
+            const pO = vertices[oIdx]
+            const dx = pB.x - pO.x, dy = pB.y - pO.y
+            const len = Math.hypot(dx, dy)
+            if (len < 1) return null
+            // Extend 45% of segment length past `beyond`, then clamp to pad.
+            const kRaw = 0.45
+            let extX = pB.x + dx * kRaw, extY = pB.y + dy * kRaw
+            const margin = 12
+            if (extX < margin) extX = margin
+            if (extX > W - margin) extX = W - margin
+            if (extY < margin) extY = margin
+            if (extY > H - margin) extY = H - margin
+            // Label sits a tiny bit further along the ray from the extension tip.
+            const ux = dx / len, uy = dy / len
+            return { i, from: pB, to: { x: extX, y: extY }, label: ext.label, ux, uy }
+          }).filter(Boolean)
+
           return (
             <g>
+              {/* Dashed extension lines drawn BEFORE the triangle so the
+                  main polygon outline stays on top visually. */}
+              {extensionRender.map(e => (
+                <line key={`ext-line-${e.i}`}
+                  x1={e.from.x} y1={e.from.y} x2={e.to.x} y2={e.to.y}
+                  stroke="#6C63FF" strokeWidth={2} strokeDasharray="5,3" />
+              ))}
               <polygon points={vertices.map(v => `${v.x},${v.y}`).join(' ')}
                 fill="none" stroke="#6C63FF" strokeWidth={2.5} />
               {graphData.labels?.map((lbl, i) => (
@@ -308,6 +345,16 @@ export default function MathGraph({ graphData }) {
                   fontSize={11} fill="#FF922B" fontWeight={600} textAnchor="middle">{side}</text>
               ) : null)}
               {angleArcs}
+              {/* Extension endpoint marker + label (drawn last, sits on top) */}
+              {extensionRender.map(e => (
+                <g key={`ext-pt-${e.i}`}>
+                  <circle cx={e.to.x} cy={e.to.y} r={3} fill="#1a1a2e" />
+                  <text x={e.to.x + e.ux * 10} y={e.to.y + e.uy * 10 + 4}
+                    fontSize={12} fill="#1a1a2e" fontWeight={700} textAnchor="middle">
+                    {e.label}
+                  </text>
+                </g>
+              ))}
             </g>
           )
         })()}
