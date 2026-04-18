@@ -634,4 +634,116 @@ export default [
       assert.ok(v && !v.rejected, `rejected: ${v?.reason}`)
     },
   },
+
+  // ── Post-validator: LLM-invented 円周角 / 内接四角形 must be rejected ──
+  // This closes the loophole that produced the tester's screenshot: LLM
+  // generated "円に内接する四角形ABCDがあります。∠ABC = 72°..." while the
+  // Stage-2 figure builder drew a plain rectangle (no circle, no ABCD on
+  // circumference). The validator now treats this as a CRITICAL failure.
+  {
+    name: 'validator rejects 内接四角形 question rendered as rectangle',
+    fn: async () => {
+      const q = {
+        question: '円に内接する四角形ABCDがあります。∠ABC = 72°のとき、対角の∠ADCの大きさを求めなさい。',
+        choices: ['72°', '108°', '144°', '180°'],
+        correctIndex: 1,
+        correctAnswer: '108°',
+        explanation: '円に内接する四角形の対角の和は180°なので、∠ADC = 180° - 72° = 108°。',
+        graphData: { type: 'shape', shape: 'rectangle', labels: ['A', 'B', 'C', 'D'] },
+      }
+      const v = validateQuestionObject(q)
+      assert.ok(v.errors.includes('circle_figure_required_but_missing'),
+        `expected circle_figure_required_but_missing in ${JSON.stringify(v.errors)}`)
+    },
+  },
+  {
+    name: 'validator rejects 円周角 question with missing pointsOnCircle',
+    fn: async () => {
+      const q = {
+        question: '円周角の定理を使って、∠APBの大きさを求めなさい。',
+        choices: ['30°', '60°', '90°', '120°'],
+        correctIndex: 2,
+        correctAnswer: '90°',
+        explanation: 'タレスの定理より直角。',
+        graphData: { type: 'shape', shape: 'circle' }, // no pointsOnCircle
+      }
+      const v = validateQuestionObject(q)
+      assert.ok(v.errors.includes('circle_figure_required_but_missing'))
+    },
+  },
+  {
+    name: 'validator rejects 直径AB question with parallelogram graphData',
+    fn: async () => {
+      const q = {
+        question: '円の直径ABの長さが10cmであるとき、円周の長さを求めなさい。',
+        choices: ['10π cm', '20π cm', '5π cm', '100π cm'],
+        correctIndex: 0,
+        correctAnswer: '10π cm',
+        explanation: '円周 = 直径 × π = 10π。',
+        graphData: { type: 'shape', shape: 'parallelogram' },
+      }
+      const v = validateQuestionObject(q)
+      assert.ok(v.errors.includes('circle_figure_required_but_missing'))
+    },
+  },
+  {
+    name: 'validator ACCEPTS 内接四角形 from solver (cyclic_quadrilateral problemType)',
+    fn: async () => {
+      // Mimic what generateSolverQuestions produces: graphData built by
+      // buildGraphFromSpec + opts.problemType = 'cyclic_quadrilateral'.
+      const q = {
+        question: '円に内接する四角形ABCDがあり、∠ABC=68°である。∠ADCの大きさを求めなさい。',
+        choices: ['108°', '112°', '68°', '80°'],
+        correctIndex: 1,
+        correctAnswer: '112°',
+        explanation: '対角の和=180°なので、180° - 68° = 112°。',
+        graphData: buildGraphFromSpec({
+          problemType: 'cyclic_quadrilateral',
+          given: { angleABC: 68 },
+        }),
+      }
+      const v = validateQuestionObject(q, { problemType: 'cyclic_quadrilateral' })
+      assert.ok(!v.errors.includes('circle_figure_required_but_missing'),
+        `solver-owned question should bypass circle rule: ${JSON.stringify(v.errors)}`)
+    },
+  },
+  {
+    name: 'validator does NOT flag non-circle geometry questions',
+    fn: async () => {
+      const q = {
+        question: '三角形ABCで ∠A=60°、∠B=80°。∠Cの大きさを求めなさい。',
+        choices: ['40°', '50°', '60°', '70°'],
+        correctIndex: 0,
+        correctAnswer: '40°',
+        explanation: '内角の和=180°より、∠C = 180° - 60° - 80° = 40°。',
+        graphData: { type: 'shape', shape: 'triangle', labels: ['A','B','C'] },
+      }
+      const v = validateQuestionObject(q)
+      assert.ok(!v.errors.includes('circle_figure_required_but_missing'))
+    },
+  },
+  {
+    name: 'validator accepts LLM-generated circle question WITH pointsOnCircle',
+    fn: async () => {
+      // If Stage 2 actually provides a proper circle graphData with A, B, C on
+      // the circumference, we should NOT reject — only the truly-wrong ones.
+      const q = {
+        question: '円Oの円周上に3点A, B, Cがあり、∠AOB=60°のとき、∠ACBの大きさを求めなさい。',
+        choices: ['30°', '60°', '90°', '120°'],
+        correctIndex: 0,
+        correctAnswer: '30°',
+        explanation: '円周角は中心角の半分。',
+        graphData: {
+          type: 'shape', shape: 'circle', center: 'O',
+          pointsOnCircle: [
+            { label: 'A', angle: 120 },
+            { label: 'B', angle: 60 },
+            { label: 'C', angle: 270 },
+          ],
+        },
+      }
+      const v = validateQuestionObject(q)
+      assert.ok(!v.errors.includes('circle_figure_required_but_missing'))
+    },
+  },
 ]

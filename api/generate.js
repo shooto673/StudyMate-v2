@@ -691,6 +691,12 @@ export default async function handler(req, res) {
 - 辺の長さを記述する際は「AB = 5cm」の形式を使うこと（図は自動生成されます）。
 - 描画できる図形: 三角形、長方形、平行四辺形、ひし形、円、一次関数グラフ(y = ax + b)、二次関数グラフ(y = ax²、y = ax² + bx + c)、数直線
 - 描画できない図形（展開図、立体、回転体、おうぎ形等）の問題は出題しないこと。
+- 【絶対禁止】以下の円関連の問題は絶対に生成してはいけません（専用システムで別途扱います。あなたがこれらを作るとユーザーに間違った図形が表示されます）：
+  ・円周角の定理を使う問題
+  ・円に内接する四角形に関する問題（対角の和=180°など）
+  ・円の直径に関する問題（タレスの定理、直径上の点から伸びる線の問題など）
+  ・円周角と中心角の関係を問う問題
+  これらは一切作らず、代わりに円の面積・周の長さ・半径と直径の関係など、図形が単純な円のみで成立する計算問題に置き換えてください。
 - 【出題バランスの必須ルール】${count}問中、必ず以下の内訳を守ること（単元内容と関係があれば優先、関係なくても無理に出す）：
   ・三角形の問題を1問以上
   ・四角形（長方形/平行四辺形/ひし形のいずれか）の問題を1問以上（ただし単元が三角形専用の場合は除外）
@@ -828,6 +834,10 @@ ${summaryInstruction}
           // Ambiguous: multiple correct answers — would punish a student
           // who picked a mathematically-valid choice.
           'multiple_valid_opposite_angles',
+          // LLM invented a 円周角 / 内接四角形 / 直径AB question but the
+          // figure builder can only draw a rectangle. Reject the whole
+          // question rather than ship a mismatched diagram.
+          'circle_figure_required_but_missing',
         ])
         const hasCritical = v.errors.some(e => CRITICAL.has(e))
         // Alien-label errors are already mitigated by removeContaminatedSentences,
