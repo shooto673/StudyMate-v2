@@ -11,7 +11,7 @@ import {
   normalizeMathText,
   isBeingAsked,
   sanitizeGraphData,
-} from '../api/generate.js'
+} from '../lib/sanitizeQuestion.js'
 import { validateQuestionObject } from '../lib/questionValidator.js'
 import { buildGraphFromSpec } from '../lib/buildGraphFromSpec.js'
 import {

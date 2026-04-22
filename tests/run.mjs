@@ -12,6 +12,8 @@ import handlerForceTest from './handlerForce.test.mjs'
 import parabolaLabelsTest from './parabolaLabels.test.mjs'
 import figureFixesTest from './figureFixes.test.mjs'
 import criticalImportsTest from './criticalImports.test.mjs'
+import sanitizeQuestionTest from './sanitizeQuestion.test.mjs'
+import stage2GraphMergeTest from './stage2GraphMerge.test.mjs'
 
 const suites = [
   { name: 'criticalImports', cases: criticalImportsTest }, // FIRST — if this fails, nothing else matters
@@ -20,6 +22,8 @@ const suites = [
   { name: 'validator', cases: validatorTest },
   { name: 'graphDataShape', cases: graphDataShapeTest },
   { name: 'explanationIntegrity', cases: explanationIntegrityTest },
+  { name: 'sanitizeQuestion', cases: sanitizeQuestionTest },
+  { name: 'stage2GraphMerge', cases: stage2GraphMergeTest },
   { name: 'solverAndValidator', cases: solverAndValidatorTest },
   { name: 'coverageAndForce', cases: coverageAndForceTest },
   { name: 'unitMatrix', cases: unitMatrixTest },

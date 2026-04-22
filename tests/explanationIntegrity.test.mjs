@@ -1,7 +1,7 @@
 // Tests for explanation integrity: contamination detection, correctIndex repair.
 // These are pure-logic tests (no LLM calls needed).
 import assert from 'node:assert/strict'
-import { removeContaminatedSentences } from '../api/generate.js'
+import { removeContaminatedSentences } from '../lib/sanitizeQuestion.js'
 
 /**
  * Simulate the correctIndex repair logic (copy of server code, kept in sync).
