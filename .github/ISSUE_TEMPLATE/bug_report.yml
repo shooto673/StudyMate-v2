@@ -1,0 +1,80 @@
+name: バグ報告
+description: 問題の誤り・表示バグ・クラッシュなどを報告する
+title: "fix: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ご報告ありがとうございます。できるだけ詳しく記入してください。
+
+  - type: dropdown
+    id: subject
+    attributes:
+      label: 教科
+      options:
+        - 数学
+        - 英語
+        - 両方・その他
+    validations:
+      required: true
+
+  - type: input
+    id: unit
+    attributes:
+      label: 単元・ユニット名
+      description: 例「中2 → 三角形と四角形 → 平行四辺形」
+      placeholder: 中X → XX → XX
+    validations:
+      required: true
+
+  - type: dropdown
+    id: bug_type
+    attributes:
+      label: バグの種類
+      options:
+        - 正解が間違っている
+        - 図が壊れている・表示されない
+        - 解説と正解が一致しない
+        - 問題が表示されない（エラー）
+        - その他
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 何が起きたか
+      description: 実際に表示された問題文・選択肢・正解・解説を貼り付けてください
+      placeholder: |
+        問題: ...
+        選択肢: ...
+        正解として表示された: ...
+        期待した正解: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 再現手順
+      placeholder: |
+        1. 中2 → 1次関数 を開く
+        2. 問題を生成する
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: ブラウザコンソール / Vercel ログ（あれば）
+      render: text
+
+  - type: checkboxes
+    id: confirm
+    attributes:
+      label: 確認
+      options:
+        - label: 複数回再現することを確認した
+          required: true

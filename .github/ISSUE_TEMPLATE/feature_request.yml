@@ -1,0 +1,54 @@
+name: 機能追加・改善提案
+description: 新機能や既存機能の改善を提案する
+title: "feat: "
+labels: ["feature", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提案ありがとうございます。スコープを明確にするため、できるだけ具体的に記入してください。
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: 影響範囲
+      options:
+        - バックエンド（問題生成ロジック）
+        - フロントエンド（UI・表示）
+        - 両方
+        - その他（CI・テスト・ドキュメントなど）
+    validations:
+      required: true
+
+  - type: textarea
+    id: motivation
+    attributes:
+      label: なぜ必要か
+      description: 現在の問題点や、達成したいことを書いてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: 提案内容
+      description: どう変えたいか、具体的に書いてください
+    validations:
+      required: true
+
+  - type: textarea
+    id: risks
+    attributes:
+      label: 既知のリスク・懸念点
+      description: 数学的正確性・英語問題・課金などへの影響があれば記載してください
+
+  - type: dropdown
+    id: claude_implement
+    attributes:
+      label: Claude に実装させるか
+      description: 「はい」を選ぶと `claude-implement` ラベルが付与されます
+      options:
+        - いいえ（人間が実装）
+        - はい（Claude に実装を依頼する）
+    validations:
+      required: true
