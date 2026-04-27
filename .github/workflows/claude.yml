@@ -1,10 +1,10 @@
 name: Claude Auto-Implement
 
 on:
-  issues:
-    types: [labeled]
   issue_comment:
     types: [created]
+  issues:
+    types: [labeled]
 
 permissions:
   contents: write
@@ -27,11 +27,21 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          additional_context: |
-            このリポジトリのルールは CLAUDE.md を参照してください。
-            実装後は必ず node tests/run.mjs を実行し、全 pass を確認してください。
-            ブランチ名は claude/<issue番号>-<slug> にしてください。
-            frontend/ の変更は Issue に明示されない限り行わないでください。
+          prompt: |
+            You are working in the StudyMate repository.
+
+            Read CLAUDE.md and REVIEW.md before making changes.
+
+            Task source:
+            - Use the current GitHub issue or issue comment as the task.
+            - Keep the implementation scope narrow.
+            - If this is Issue #1, change README.md only.
+
+            Hard rules:
+            - Do not modify frontend/, backend/, tests/, billing, auth, or workflows unless explicitly requested.
+            - Do not commit frontend/dist/.
+            - Do not write secrets into code.
+            - Open a pull request with a concise summary.
 
   claude-review:
     if: |
@@ -45,6 +55,11 @@ jobs:
       - uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          additional_context: |
-            REVIEW.md のチェックリストに従って PR をレビューしてください。
-            approve/request_changes の判断と、具体的な確認結果をコメントしてください。
+          prompt: |
+            Review this pull request using REVIEW.md.
+
+            Focus on:
+            - scope control
+            - no unintended file changes
+            - no app logic changes
+            - test and safety checklist
