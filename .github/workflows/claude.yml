@@ -37,11 +37,21 @@ jobs:
             - Keep the implementation scope narrow.
             - If this is Issue #1, change README.md only.
 
+            Required implementation for Issue #1:
+            - Edit README.md only.
+            - Add exactly this line near the end of README.md:
+              AI orchestration test: GitHub Issue -> Claude -> PR flow enabled.
+            - Create a new branch.
+            - Commit the README.md change.
+            - Open a pull request.
+
             Hard rules:
             - Do not modify frontend/, backend/, tests/, billing, auth, or workflows unless explicitly requested.
             - Do not commit frontend/dist/.
             - Do not write secrets into code.
             - Open a pull request with a concise summary.
+          claude_args: |
+            --allowedTools Read,Edit,Write,Bash(git status:*),Bash(git diff:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(gh pr create:*),Bash(gh pr view:*)
 
   claude-review:
     if: |
