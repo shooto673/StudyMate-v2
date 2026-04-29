@@ -582,6 +582,9 @@ ${summaryInstruction}
 
       if (!openaiKey) {
         console.warn('[Stage2] OPENAI_API_KEY not set — skipping graph extraction')
+      } else if (!questions.some(q => q.needsGraph === true)) {
+        meta.stage2 = 'skipped_no_graph_questions'
+        console.log('[Stage2] skipped — 0 questions with needsGraph=true')
       } else {
         const graphResults = await extractGraphData(questions, openaiKey)
 
