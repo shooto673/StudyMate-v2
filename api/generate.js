@@ -14,6 +14,7 @@ import {
   removeContaminatedSentences,
 } from '../lib/sanitizeQuestion.js'
 import { mergeStage2GraphData } from '../lib/stage2GraphMerge.js'
+import { selectCandidateIndices } from '../lib/stage2Candidates.js'
 
 // Re-export sanitize helpers for downstream callers / tests that historically
 // imported them from this module. New code should import from
@@ -438,7 +439,8 @@ export default async function handler(req, res) {
   ・円の問題を1問以上（${count} >= 4 の場合、または単元が円・関数・図形系の場合）
   ・座標グラフ(y = ax + b または y = ax²)または数直線の問題を1問以上
   ・純粋な計算問題を1-2問
-- 全角マイナス記号「−」は使わず、半角「-」を使用すること（例: y = -3x + 6）。` : ''
+- 全角マイナス記号「−」は使わず、半角「-」を使用すること（例: y = -3x + 6）。
+- 【needsGraph必須】各問題のJSONに "needsGraph" フィールドを追加すること: 図形・グラフ・数直線が登場する問題は true、純粋な計算問題（方程式を解くだけ等）のみ false。` : ''
 
   const isSummaryTest = subUnitTitle === 'まとめテスト'
   const summaryInstruction = isSummaryTest ? `
@@ -479,7 +481,7 @@ ${summaryInstruction}
     "choices": ["選択肢A", "選択肢B", "選択肢C", "選択肢D"],
     "correctIndex": 0,
     "correctAnswer": "正解の選択肢テキスト（choices[correctIndex]と完全一致）",
-    "explanation": "解説文"${subject === 'english' ? ',\n    "hint": "ヒント文"' : ''}
+    "explanation": "解説文"${subject === 'english' ? ',\n    "hint": "ヒント文"' : (subject === 'math' ? ',\n    "needsGraph": true' : '')}
   }
 ]`
 
@@ -575,31 +577,41 @@ ${summaryInstruction}
     }
 
     if (subject === 'math') {
-      console.log('[Stage2]', JSON.stringify({
-        unitTitle, subUnitTitle, grade, count: questions.length,
-        openaiKey: !!openaiKey,
-      }))
-
       if (!openaiKey) {
         console.warn('[Stage2] OPENAI_API_KEY not set — skipping graph extraction')
-      } else if (!questions.some(q => q.needsGraph === true)) {
-        meta.stage2 = 'skipped_no_graph_questions'
-        console.log('[Stage2] skipped — 0 questions with needsGraph=true')
       } else {
-        const graphResults = await extractGraphData(questions, openaiKey)
+        const candidateIndices = selectCandidateIndices(questions)
+        const skipped = questions.length - candidateIndices.length
+        console.log(`[Stage2] candidates: ${candidateIndices.length}, skipped: ${skipped}, total: ${questions.length}`)
 
-        if (graphResults) {
-          // Stage-2 post-processing: merge extraction results into questions
-          // with defensive cleanup (nlPoints→points, null strip, secondShape
-          // drop, side-order fix, range clamp). See lib/stage2GraphMerge.js.
-          const { appliedCount } = mergeStage2GraphData(questions, graphResults)
-          meta.stage2 = 'ok'
-          meta.extractionApplied = appliedCount
-          console.log('[Stage2] Applied graphData to', appliedCount, 'of', questions.length, 'questions')
+        if (candidateIndices.length === 0) {
+          meta.stage2 = 'skipped_no_candidates'
         } else {
-          meta.stage2 = 'failed'
-          meta.stage2Error = 'extractGraphData returned null (see earlier logs)'
-          console.error('[Stage2] Extraction returned null — no graphs applied')
+          // Run one extraction per candidate in parallel; a single failure
+          // never drops the whole batch — that question simply ships without graphData.
+          const settled = await Promise.allSettled(
+            candidateIndices.map(async (origIdx) => {
+              const result = await extractGraphData([questions[origIdx]], openaiKey)
+              if (!result || !result[0]) return null
+              // Remap questionIndex from filtered position (0) back to original array index.
+              return { ...result[0], questionIndex: origIdx }
+            })
+          )
+
+          const graphResults = settled
+            .map(r => r.status === 'fulfilled' ? r.value : null)
+            .filter(Boolean)
+
+          if (graphResults.length > 0) {
+            const { appliedCount } = mergeStage2GraphData(questions, graphResults)
+            meta.stage2 = 'ok'
+            meta.extractionApplied = appliedCount
+            console.log('[Stage2] Applied graphData to', appliedCount, 'of', questions.length, 'questions')
+          } else {
+            meta.stage2 = 'failed'
+            meta.stage2Error = 'all Stage2 extractions returned null'
+            console.error('[Stage2] All extractions failed — no graphs applied')
+          }
         }
       }
     }
